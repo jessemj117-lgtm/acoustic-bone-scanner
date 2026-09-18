@@ -4096,3 +4096,5 @@ window.monitorScanRequest =
 
 window.closeModal =
     closeModal;
+window.openOperatorManagement =
+    openOperatorManagement;
