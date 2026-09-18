@@ -846,6 +846,9 @@ function setupDashboardCards() {
     const deviceCard =
         $("deviceCard");
 
+    const operatorCard =
+        $("operatorCard");
+
 
     if (patientCard) {
 
@@ -888,6 +891,18 @@ function setupDashboardCards() {
             openDeviceManagement;
 
         deviceCard.style.cursor =
+            "pointer";
+
+    }
+
+
+    if (operatorCard &&
+        isAdmin()) {
+
+        operatorCard.onclick =
+            openOperatorManagement;
+
+        operatorCard.style.cursor =
             "pointer";
 
     }
