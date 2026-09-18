@@ -839,6 +839,46 @@ async function openOperatorManagement() {
     }
 
 }
+async function deleteOperatorAccount(operatorId, operatorName) {
+    if (!currentProfile || currentProfile.role !== "admin") {
+        showModal("Access denied", "Only administrators can delete operator accounts.");
+        return;
+    }
+
+    const confirmed = confirm(
+        `Delete operator "${operatorName}"?\n\n` +
+        `This will permanently delete the operator's login account.`
+    );
+
+    if (!confirmed) return;
+
+    try {
+        const { data, error } = await db.rpc(
+            "delete_operator_account",
+            {
+                operator_user_id: operatorId
+            }
+        );
+
+        if (error) throw error;
+
+        showModal(
+            "Operator Deleted",
+            `The operator "${operatorName}" has been deleted successfully.`
+        );
+
+        await openOperatorManagement();
+        await loadDashboardCounts();
+
+    } catch (error) {
+        console.error("Delete operator error:", error);
+
+        showModal(
+            "Delete Failed",
+            error.message || "Unable to delete the operator account."
+        );
+    }
+}
 /* ============================================================
    DASHBOARD COUNTS
    ============================================================ */
@@ -4098,3 +4138,4 @@ window.closeModal =
     closeModal;
 window.openOperatorManagement =
     openOperatorManagement;
+window.deleteOperatorAccount = deleteOperatorAccount;
