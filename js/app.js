@@ -651,7 +651,194 @@ function updateDashboardForRole() {
 
 }
 
+async function openOperatorManagement() {
 
+    if (!isAdmin()) {
+
+        alert(
+            "Administrator access required."
+        );
+
+        return;
+
+    }
+
+
+    showContentArea(
+        "Loading operators..."
+    );
+
+
+    try {
+
+        const {
+            data,
+            error
+        } = await db
+            .from("profiles")
+            .select("*")
+            .eq(
+                "role",
+                "operator"
+            )
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            );
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        let html = `
+
+            <div class="content-header">
+
+                <h3>
+                    Operator Management
+                </h3>
+
+            </div>
+
+        `;
+
+
+        if (!data ||
+            data.length === 0) {
+
+            html += `
+
+                <p>
+                    No operators found.
+                </p>
+
+                <p>
+                    Create an account using the
+                    Create Account option, then
+                    assign the operator role.
+                </p>
+
+            `;
+
+        } else {
+
+            html += `
+
+                <div class="table-container">
+
+                <table>
+
+                    <thead>
+
+                        <tr>
+
+                            <th>
+                                Name
+                            </th>
+
+                            <th>
+                                Email
+                            </th>
+
+                            <th>
+                                Role
+                            </th>
+
+                            <th>
+                                Created
+                            </th>
+
+                        </tr>
+
+                    </thead>
+
+                    <tbody>
+
+            `;
+
+
+            data.forEach(operator => {
+
+                html += `
+
+                    <tr>
+
+                        <td>
+                            ${escapeHtml(
+                                operator.name
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                operator.email ||
+                                "—"
+                            )}
+                        </td>
+
+                        <td>
+                            ${escapeHtml(
+                                operator.role
+                            )}
+                        </td>
+
+                        <td>
+                            ${formatDate(
+                                operator.created_at
+                            )}
+                        </td>
+
+                    </tr>
+
+                `;
+
+            });
+
+
+            html += `
+
+                    </tbody>
+
+                </table>
+
+                </div>
+
+            `;
+
+        }
+
+
+        showContentArea(html);
+
+
+    } catch (error) {
+
+        console.error(
+            "OPERATOR LOAD ERROR:",
+            error
+        );
+
+
+        showContentArea(`
+
+            <p class="error-text">
+
+                Unable to load operators:
+                ${escapeHtml(
+                    error.message
+                )}
+
+            </p>
+
+        `);
+
+    }
+
+}
 /* ============================================================
    DASHBOARD COUNTS
    ============================================================ */
