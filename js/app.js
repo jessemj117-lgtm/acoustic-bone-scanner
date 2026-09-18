@@ -16,14 +16,6 @@ let currentPage = "dashboard";
 
 const db = window.supabaseClient;
 
-// If config.js used a different variable name, fall back to it.
-const supabase =
-    window.supabaseClient ||
-    window.sb ||
-    window.supabase?.createClient
-        ? window.supabaseClient
-        : null;
-
 // ------------------------------------------------------------
 // STARTUP
 // ------------------------------------------------------------
