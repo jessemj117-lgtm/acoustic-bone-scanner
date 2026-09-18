@@ -660,21 +660,13 @@ async function loadDashboardCounts() {
 
     try {
 
+        /* ---------------------------------------------
+           PATIENT COUNT
+           --------------------------------------------- */
+
         const patients =
             await db
                 .from("patients")
-                .select(
-                    "id",
-                    {
-                        count: "exact",
-                        head: true
-                    }
-                );
-
-
-        const measurements =
-            await db
-                .from("measurements")
                 .select(
                     "id",
                     {
@@ -692,6 +684,22 @@ async function loadDashboardCounts() {
         }
 
 
+        /* ---------------------------------------------
+           MEASUREMENT COUNT
+           --------------------------------------------- */
+
+        const measurements =
+            await db
+                .from("measurements")
+                .select(
+                    "id",
+                    {
+                        count: "exact",
+                        head: true
+                    }
+                );
+
+
         if ($("measurementCount")) {
 
             $("measurementCount").textContent =
@@ -700,23 +708,18 @@ async function loadDashboardCounts() {
         }
 
 
+        /* ---------------------------------------------
+           ADMIN COUNTS
+           --------------------------------------------- */
+
         if (isAdmin()) {
+
+
+            /* Reference samples */
 
             const references =
                 await db
                     .from("reference_samples")
-                    .select(
-                        "id",
-                        {
-                            count: "exact",
-                            head: true
-                        }
-                    );
-
-
-            const devices =
-                await db
-                    .from("devices")
                     .select(
                         "id",
                         {
@@ -734,10 +737,50 @@ async function loadDashboardCounts() {
             }
 
 
+            /* Devices */
+
+            const devices =
+                await db
+                    .from("devices")
+                    .select(
+                        "id",
+                        {
+                            count: "exact",
+                            head: true
+                        }
+                    );
+
+
             if ($("deviceCount")) {
 
                 $("deviceCount").textContent =
                     devices.count ?? 0;
+
+            }
+
+
+            /* Operators */
+
+            const operators =
+                await db
+                    .from("profiles")
+                    .select(
+                        "id",
+                        {
+                            count: "exact",
+                            head: true
+                        }
+                    )
+                    .eq(
+                        "role",
+                        "operator"
+                    );
+
+
+            if ($("operatorCount")) {
+
+                $("operatorCount").textContent =
+                    operators.count ?? 0;
 
             }
 
@@ -754,7 +797,6 @@ async function loadDashboardCounts() {
     }
 
 }
-
 
 /* ============================================================
    SYSTEM STATUS
