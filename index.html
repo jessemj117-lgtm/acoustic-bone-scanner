@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Acoustic Bone Scanner</title>
+
+    <link rel="stylesheet" href="css/style.css">
+
+    <!-- Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+
+<body>
+
+    <div class="app">
+
+        <header class="topbar">
+            <div>
+                <h1>Acoustic Bone Scanner</h1>
+                <p>Group 4 • Acoustic Resonance Measurement System</p>
+            </div>
+        </header>
+
+
+        <!-- LOGIN -->
+        <main id="loginPage" class="page">
+
+            <div class="login-card">
+
+                <h2>System Login</h2>
+                <p class="subtitle">
+                    Admin and Operator access
+                </p>
+
+                <form id="loginForm">
+
+                    <label for="email">Email</label>
+                    <input
+                        type="email"
+                        id="email"
+                        required
+                        autocomplete="email"
+                    >
+
+                    <label for="password">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        required
+                        autocomplete="current-password"
+                    >
+
+                    <button type="submit" class="primary-button">
+                        Login
+                    </button>
+
+                </form>
+
+                <div id="loginMessage" class="message"></div>
+
+                <div class="patient-link">
+                    <p>Are you a patient?</p>
+
+                    <button
+                        id="patientPortalButton"
+                        class="secondary-button"
+                    >
+                        Patient Portal
+                    </button>
+                </div>
+
+            </div>
+
+        </main>
+
+
+        <!-- ADMIN / OPERATOR DASHBOARD -->
+        <main id="dashboardPage" class="page hidden">
+
+            <div class="dashboard-header">
+
+                <div>
+                    <h2 id="dashboardTitle">
+                        Dashboard
+                    </h2>
+
+                    <p id="userInfo"></p>
+                </div>
+
+                <button
+                    id="logoutButton"
+                    class="secondary-button"
+                >
+                    Logout
+                </button>
+
+            </div>
+
+
+            <section class="dashboard-grid">
+
+                <div class="dashboard-card">
+                    <h3>Patients</h3>
+                    <p id="patientCount">—</p>
+                </div>
+
+                <div class="dashboard-card">
+                    <h3>Measurements</h3>
+                    <p id="measurementCount">—</p>
+                </div>
+
+                <div
+                    class="dashboard-card admin-only"
+                    id="referenceCard"
+                >
+                    <h3>Reference Samples</h3>
+                    <p id="referenceCount">—</p>
+                </div>
+
+                <div
+                    class="dashboard-card admin-only"
+                    id="deviceCard"
+                >
+                    <h3>Devices</h3>
+                    <p id="deviceCount">—</p>
+                </div>
+
+            </section>
+
+
+            <section class="welcome-panel">
+
+                <h3>Scanner System</h3>
+
+                <p>
+                    The web system is connected to Supabase.
+                </p>
+
+                <p id="systemStatus">
+                    Checking system status...
+                </p>
+
+            </section>
+
+        </main>
+
+
+        <!-- PATIENT PORTAL -->
+        <main id="patientPage" class="page hidden">
+
+            <div class="login-card">
+
+                <h2>Patient Portal</h2>
+
+                <p class="subtitle">
+                    Enter your patient code
+                </p>
+
+                <form id="patientLoginForm">
+
+                    <label for="patientCode">
+                        Patient Code
+                    </label>
+
+                    <input
+                        type="text"
+                        id="patientCode"
+                        placeholder="XXXX-XXXX-XX"
+                        autocomplete="off"
+                        required
+                    >
+
+                    <button
+                        type="submit"
+                        class="primary-button"
+                    >
+                        View My Results
+                    </button>
+
+                </form>
+
+                <div
+                    id="patientLoginMessage"
+                    class="message"
+                ></div>
+
+                <button
+                    id="backToLoginButton"
+                    class="secondary-button"
+                >
+                    Back to Login
+                </button>
+
+            </div>
+
+        </main>
+
+
+        <!-- PATIENT RESULTS -->
+        <main id="patientResultsPage" class="page hidden">
+
+            <div class="dashboard-header">
+
+                <div>
+                    <h2>Patient Results</h2>
+                    <p id="patientName"></p>
+                </div>
+
+                <button
+                    id="patientLogoutButton"
+                    class="secondary-button"
+                >
+                    Logout
+                </button>
+
+            </div>
+
+            <section class="welcome-panel">
+
+                <h3>Patient Information</h3>
+
+                <div id="patientDetails"></div>
+
+            </section>
+
+
+            <section class="welcome-panel">
+
+                <h3>Measurements</h3>
+
+                <div id="patientMeasurements">
+                    No measurements available.
+                </div>
+
+            </section>
+
+        </main>
+
+    </div>
+
+
+    <script src="js/config.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/app.js"></script>
+
+</body>
+</html>
