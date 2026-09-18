@@ -3521,33 +3521,36 @@ function setupLogout() {
 
     }
 
-    const patientLogout =
-        document.getElementById(
-            "patientLogoutButton"
-        );
+  const patientLogout =
+    document.getElementById(
+        "patientLogoutButton"
+    );
 
-    if (patientLogout) {
+if (patientLogout) {
 
-        patientLogout.addEventListener(
-            "click",
-            () => {
+    patientLogout.addEventListener(
+        "click",
+        () => {
 
-                currentPatient = null;
+            currentPatient = null;
 
-                document
-                    .getElementById(
-                        "patientCode"
-                    )
-                    ?.value = "";
-
-                showPage(
-                    "loginPage"
+            const patientCodeInput =
+                document.getElementById(
+                    "patientCode"
                 );
 
+            if (patientCodeInput) {
+                patientCodeInput.value = "";
             }
-        );
 
-    }
+            showPage(
+                "loginPage"
+            );
+
+        }
+    );
+
+}
 
 }
 
