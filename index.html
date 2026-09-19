@@ -2,641 +2,661 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
 
     <title>Acoustic Bone Scanner</title>
 
-    <link rel="stylesheet" href="css/style.css">
+    <meta
+        name="description"
+        content="Group 4 Acoustic Bone Density Scanner research prototype"
+    >
 
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <link rel="stylesheet" href="css/style.css?v=20260919">
+
+    <script
+        src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+        defer
+    ></script>
+
+    <script
+        src="js/config.js?v=20260919"
+        defer
+    ></script>
+
+    <script
+        src="js/app.js?v=20260919"
+        defer
+    ></script>
 </head>
 
 <body>
 
-<div class="app">
+<div id="app">
 
     <!-- =========================================================
-         TOP BAR
+         PUBLIC LANDING / LOGIN
     ========================================================== -->
-    <header class="topbar">
 
-        <div>
-            <h1>Acoustic Bone Scanner</h1>
-            <p>Group 4 • Acoustic Resonance Measurement System</p>
-        </div>
+    <div id="authScreen" class="screen">
 
-    </header>
+        <header class="public-header">
+
+            <div class="brand">
+                <div class="brand-mark">🦴</div>
+
+                <div>
+                    <div class="brand-name">
+                        Acoustic Bone Scanner
+                    </div>
+
+                    <div class="brand-subtitle">
+                        Group 4 Research Prototype
+                    </div>
+                </div>
+            </div>
+
+            <div class="device-pill">
+                <span class="status-dot"></span>
+                ABS-001
+            </div>
+
+        </header>
+
+
+        <main class="auth-layout">
+
+            <section class="hero-panel">
+
+                <div class="eyebrow">
+                    LOW-COST ACOUSTIC RESEARCH PLATFORM
+                </div>
+
+                <h1>
+                    Acoustic resonance measurement
+                    for experimental bone research.
+                </h1>
+
+                <p class="hero-description">
+                    A portable ESP32-based experimental platform
+                    for measuring acoustic response, resonance
+                    frequency, RMS response, bandwidth and
+                    Q-factor.
+                </p>
+
+                <div class="hero-tags">
+
+                    <span>200–1200 Hz</span>
+                    <span>ESP32</span>
+                    <span>Piezoelectric sensing</span>
+                    <span>Research prototype</span>
+
+                </div>
+
+
+                <div class="research-note">
+
+                    <strong>Research prototype</strong>
+
+                    <p>
+                        This system is intended for academic and
+                        experimental investigation. It is not a
+                        DEXA replacement and does not independently
+                        diagnose osteoporosis or bone mineral
+                        density.
+                    </p>
+
+                </div>
+
+            </section>
+
+
+            <section class="auth-card">
+
+                <!-- LOGIN -->
+
+                <div id="loginView">
+
+                    <div class="auth-heading">
+
+                        <span class="section-kicker">
+                            STAFF ACCESS
+                        </span>
+
+                        <h2>Sign in</h2>
+
+                        <p>
+                            Access the scanner management system.
+                        </p>
+
+                    </div>
+
+
+                    <form id="loginForm">
+
+                        <div class="field">
+
+                            <label for="loginEmail">
+                                Email
+                            </label>
+
+                            <input
+                                id="loginEmail"
+                                name="email"
+                                type="email"
+                                autocomplete="username"
+                                placeholder="you@example.com"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="field">
+
+                            <label for="loginPassword">
+                                Password
+                            </label>
+
+                            <input
+                                id="loginPassword"
+                                name="password"
+                                type="password"
+                                autocomplete="current-password"
+                                placeholder="Enter your password"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div
+                            id="loginMessage"
+                            class="form-message"
+                        ></div>
+
+
+                        <button
+                            type="submit"
+                            class="button primary full"
+                        >
+                            <span>Sign in</span>
+                        </button>
+
+                    </form>
+
+
+                    <div class="auth-divider">
+                        <span>or</span>
+                    </div>
+
+
+                    <button
+                        id="patientPortalButton"
+                        class="button secondary full"
+                        type="button"
+                    >
+                        Patient Portal
+                    </button>
+
+
+                    <button
+                        id="createAccountButton"
+                        class="text-button full"
+                        type="button"
+                    >
+                        Create operator account
+                    </button>
+
+                </div>
+
+
+                <!-- CREATE ACCOUNT -->
+
+                <div
+                    id="createAccountView"
+                    class="hidden"
+                >
+
+                    <div class="auth-heading">
+
+                        <span class="section-kicker">
+                            STAFF REGISTRATION
+                        </span>
+
+                        <h2>Create account</h2>
+
+                        <p>
+                            Register a scanner operator account.
+                        </p>
+
+                    </div>
+
+
+                    <form id="createAccountForm">
+
+                        <div class="field">
+
+                            <label for="createName">
+                                Full name
+                            </label>
+
+                            <input
+                                id="createName"
+                                name="name"
+                                type="text"
+                                placeholder="Full name"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="field">
+
+                            <label for="createEmail">
+                                Email
+                            </label>
+
+                            <input
+                                id="createEmail"
+                                name="email"
+                                type="email"
+                                autocomplete="email"
+                                placeholder="you@example.com"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div class="field">
+
+                            <label for="createPassword">
+                                Password
+                            </label>
+
+                            <input
+                                id="createPassword"
+                                name="password"
+                                type="password"
+                                autocomplete="new-password"
+                                placeholder="At least 6 characters"
+                                minlength="6"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div
+                            id="createAccountMessage"
+                            class="form-message"
+                        ></div>
+
+
+                        <button
+                            type="submit"
+                            class="button primary full"
+                        >
+                            Create account
+                        </button>
+
+                    </form>
+
+
+                    <button
+                        id="backToLoginButton"
+                        class="text-button full"
+                        type="button"
+                    >
+                        ← Back to sign in
+                    </button>
+
+                </div>
+
+
+                <!-- PATIENT LOGIN -->
+
+                <div
+                    id="patientLoginView"
+                    class="hidden"
+                >
+
+                    <div class="auth-heading">
+
+                        <span class="section-kicker">
+                            PATIENT PORTAL
+                        </span>
+
+                        <h2>Your results</h2>
+
+                        <p>
+                            Enter the patient code provided
+                            by the operator.
+                        </p>
+
+                    </div>
+
+
+                    <form id="patientLoginForm">
+
+                        <div class="field">
+
+                            <label for="patientCode">
+                                Patient code
+                            </label>
+
+                            <input
+                                id="patientCode"
+                                name="patient_code"
+                                type="text"
+                                autocomplete="off"
+                                placeholder="Enter patient code"
+                                required
+                            >
+
+                        </div>
+
+
+                        <div
+                            id="patientLoginMessage"
+                            class="form-message"
+                        ></div>
+
+
+                        <button
+                            type="submit"
+                            class="button primary full"
+                        >
+                            View my results
+                        </button>
+
+                    </form>
+
+
+                    <button
+                        id="patientBackButton"
+                        class="text-button full"
+                        type="button"
+                    >
+                        ← Back to staff login
+                    </button>
+
+                </div>
+
+            </section>
+
+        </main>
+
+
+        <footer class="public-footer">
+
+            <span>
+                Group 4 Acoustic Bone Density Scanner
+            </span>
+
+            <span>
+                Experimental academic prototype
+            </span>
+
+        </footer>
+
+    </div>
 
 
     <!-- =========================================================
-         LOGIN PAGE
+         STAFF APPLICATION
     ========================================================== -->
-    <main id="loginPage" class="page">
 
-        <div class="login-card">
+    <div
+        id="appScreen"
+        class="screen hidden"
+    >
 
-            <h2>System Login</h2>
+        <aside id="sidebar" class="sidebar">
 
-            <p class="subtitle">
-                Admin and Operator access
-            </p>
+            <div class="sidebar-brand">
 
-            <form id="loginForm">
+                <div class="brand-mark small">
+                    🦴
+                </div>
 
-                <label for="email">
-                    Email
-                </label>
+                <div>
 
-                <input
-                    type="email"
-                    id="email"
-                    required
-                    autocomplete="email"
-                    placeholder="Enter email"
-                >
+                    <strong>
+                        Acoustic Scanner
+                    </strong>
 
-                <label for="password">
-                    Password
-                </label>
+                    <small>
+                        ABS-001
+                    </small>
 
-                <input
-                    type="password"
-                    id="password"
-                    required
-                    autocomplete="current-password"
-                    placeholder="Enter password"
-                >
+                </div>
+
+            </div>
+
+
+            <nav id="mainNavigation" class="navigation">
+            </nav>
+
+
+            <div class="sidebar-bottom">
+
+                <div class="connection-box">
+
+                    <span class="status-dot"></span>
+
+                    <div>
+
+                        <strong id="connectionLabel">
+                            Connected
+                        </strong>
+
+                        <small>
+                            Supabase
+                        </small>
+
+                    </div>
+
+                </div>
+
 
                 <button
-                    type="submit"
-                    class="primary-button"
-                >
-                    Login
-                </button>
-
-            </form>
-
-            <div
-                id="loginMessage"
-                class="message"
-            ></div>
-
-
-            <div class="patient-link">
-
-                <p>Are you a patient?</p>
-
-                <button
-                    id="patientPortalButton"
-                    class="secondary-button"
+                    id="logoutButton"
+                    class="logout-button"
                     type="button"
                 >
-                    Patient Portal
+                    Sign out
                 </button>
 
             </div>
 
+        </aside>
 
-            <div class="patient-link">
 
-                <p>Need an operator account?</p>
+        <div class="main-shell">
+
+            <header class="topbar">
 
                 <button
-                    id="createAccountButton"
-                    class="secondary-button"
+                    id="mobileMenuButton"
+                    class="icon-button mobile-only"
                     type="button"
+                    aria-label="Open menu"
                 >
-                    Create Account
+                    ☰
                 </button>
 
-            </div>
 
-        </div>
+                <div>
 
-    </main>
+                    <div
+                        id="pageKicker"
+                        class="topbar-kicker"
+                    >
+                        DASHBOARD
+                    </div>
 
+                    <h1 id="pageTitle">
+                        Dashboard
+                    </h1>
 
-    <!-- =========================================================
-         CREATE ACCOUNT PAGE
-    ========================================================== -->
-    <main
-        id="createAccountPage"
-        class="page hidden"
-    >
-
-        <div class="login-card">
-
-            <h2>Create Operator Account</h2>
-
-            <p class="subtitle">
-                Create an account for scanner operation
-            </p>
-
-            <form id="createAccountForm">
-
-                <label for="createName">
-                    Full Name
-                </label>
-
-                <input
-                    type="text"
-                    id="createName"
-                    required
-                    placeholder="Enter full name"
-                >
+                </div>
 
 
-                <label for="createEmail">
-                    Email
-                </label>
+                <div class="topbar-user">
 
-                <input
-                    type="email"
-                    id="createEmail"
-                    required
-                    autocomplete="email"
-                    placeholder="Enter email"
-                >
+                    <div class="avatar" id="userAvatar">
+                        U
+                    </div>
 
+                    <div>
 
-                <label for="createPassword">
-                    Password
-                </label>
+                        <strong id="userName">
+                            User
+                        </strong>
 
-                <input
-                    type="password"
-                    id="createPassword"
-                    required
-                    minlength="6"
-                    autocomplete="new-password"
-                    placeholder="Minimum 6 characters"
-                >
+                        <small id="userRole">
+                            Operator
+                        </small>
+
+                    </div>
+
+                </div>
+
+            </header>
 
 
-                <label for="createPasswordConfirm">
-                    Confirm Password
-                </label>
-
-                <input
-                    type="password"
-                    id="createPasswordConfirm"
-                    required
-                    minlength="6"
-                    autocomplete="new-password"
-                    placeholder="Repeat password"
-                >
-
-
-                <button
-                    type="submit"
-                    class="primary-button"
-                >
-                    Create Account
-                </button>
-
-            </form>
-
-            <div
-                id="createAccountMessage"
-                class="message"
-            ></div>
-
-
-            <button
-                id="backFromCreateAccountButton"
-                class="secondary-button"
-                type="button"
+            <main
+                id="mainContent"
+                class="main-content"
             >
-                Back to Login
-            </button>
+
+                <!-- Dashboard rendered here -->
+
+            </main>
 
         </div>
 
-    </main>
+    </div>
 
 
     <!-- =========================================================
-         DASHBOARD PAGE
+         PATIENT RESULTS
     ========================================================== -->
-    <main
-        id="dashboardPage"
-        class="page hidden"
+
+    <div
+        id="patientPortalScreen"
+        class="screen hidden"
     >
 
-        <div class="dashboard-header">
+        <header class="public-header">
 
-            <div>
+            <div class="brand">
 
-                <h2 id="dashboardTitle">
-                    Dashboard
-                </h2>
+                <div class="brand-mark">
+                    🦴
+                </div>
 
-                <p id="userInfo"></p>
+                <div>
+
+                    <div class="brand-name">
+                        Acoustic Bone Scanner
+                    </div>
+
+                    <div class="brand-subtitle">
+                        Patient Portal
+                    </div>
+
+                </div>
 
             </div>
 
             <button
-                id="logoutButton"
-                class="secondary-button"
+                id="patientPortalLogout"
+                class="button secondary"
                 type="button"
             >
-                Logout
+                Exit
             </button>
 
-        </div>
+        </header>
 
 
-        <!-- =====================================================
-             ADMIN DASHBOARD
-        ====================================================== -->
-        <section
-            id="adminDashboard"
-            class="role-dashboard hidden"
+        <main
+            id="patientPortalContent"
+            class="patient-portal-content"
         >
+        </main>
 
-            <h3>Administrator Dashboard</h3>
-
-            <div class="dashboard-grid">
-
-                <div
-                    class="dashboard-card"
-                    id="patientCard"
-                >
-                    <h3>Patients</h3>
-                    <p id="patientCount">—</p>
-                    <small>Patient management</small>
-                </div>
-
-
-                <div
-                    class="dashboard-card"
-                    id="measurementCard"
-                >
-                    <h3>Measurements</h3>
-                    <p id="measurementCount">—</p>
-                    <small>Scan results</small>
-                </div>
-
-
-                <div
-                    class="dashboard-card admin-only"
-                    id="referenceCard"
-                >
-                    <h3>Reference Samples</h3>
-                    <p id="referenceCount">—</p>
-                    <small>Calibration/reference data</small>
-                </div>
-
-
-                <div
-                    class="dashboard-card admin-only"
-                    id="deviceCard"
-                >
-                    <h3>Devices</h3>
-                    <p id="deviceCount">—</p>
-                    <small>Scanner devices</small>
-                </div>
-
-
-                <div
-                    class="dashboard-card admin-only"
-                    id="operatorCard"
-                >
-                    <h3>Operators</h3>
-                    <p id="operatorCount">—</p>
-                    <small>Manage operator accounts</small>
-                </div>
-
-            </div>
-
-
-            <div class="welcome-panel">
-
-                <h3>Admin Quick Actions</h3>
-
-                <div class="button-row">
-
-                    <button
-                        id="adminPatientsButton"
-                        class="primary-button"
-                        type="button"
-                    >
-                        Manage Patients
-                    </button>
-
-                    <button
-                        id="adminMeasurementsButton"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        Measurements
-                    </button>
-
-                    <button
-                        id="adminReferencesButton"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        Reference Samples
-                    </button>
-
-                    <button
-                        id="adminDevicesButton"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        Devices
-                    </button>
-
-                    <button
-                        id="adminOperatorsButton"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        Operators
-                    </button>
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- =====================================================
-             OPERATOR DASHBOARD
-        ====================================================== -->
-        <section
-            id="operatorDashboard"
-            class="role-dashboard hidden"
-        >
-
-            <h3>Operator Dashboard</h3>
-
-            <div class="dashboard-grid">
-
-                <div
-                    class="dashboard-card"
-                    id="operatorPatientCard"
-                >
-                    <h3>Patients</h3>
-                    <p id="operatorPatientCount">—</p>
-                    <small>Patient management</small>
-                </div>
-
-
-                <div
-                    class="dashboard-card"
-                    id="operatorMeasurementCard"
-                >
-                    <h3>Measurements</h3>
-                    <p id="operatorMeasurementCount">—</p>
-                    <small>Scan results</small>
-                </div>
-
-
-                <div
-                    class="dashboard-card"
-                    id="scannerCard"
-                >
-                    <h3>Scanner</h3>
-                    <p>Ready</p>
-                    <small>Start a patient scan</small>
-                </div>
-
-            </div>
-
-
-            <div class="welcome-panel">
-
-                <h3>Operator Quick Actions</h3>
-
-                <div class="button-row">
-
-                    <button
-                        id="operatorPatientsButton"
-                        class="primary-button"
-                        type="button"
-                    >
-                        Manage Patients
-                    </button>
-
-                    <button
-                        id="newPatientScanButton"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        New Patient Scan
-                    </button>
-
-                    <button
-                        id="operatorMeasurementsButton"
-                        class="secondary-button"
-                        type="button"
-                    >
-                        Measurements
-                    </button>
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <!-- =====================================================
-             MAIN CONTENT AREA
-        ====================================================== -->
-        <section
-            id="dashboardContent"
-            class="welcome-panel hidden"
-        >
-
-            <div id="contentArea"></div>
-
-        </section>
-
-
-        <!-- =====================================================
-             SYSTEM STATUS
-        ====================================================== -->
-        <section
-            id="systemStatusPanel"
-            class="welcome-panel"
-        >
-
-            <h3>Scanner System</h3>
-
-            <p>
-                The web system is connected to Supabase.
-            </p>
-
-            <p id="systemStatus">
-                Checking system status...
-            </p>
-
-        </section>
-
-    </main>
-
-
-    <!-- =========================================================
-         PATIENT LOGIN PAGE
-    ========================================================== -->
-    <main
-        id="patientPage"
-        class="page hidden"
-    >
-
-        <div class="login-card">
-
-            <h2>Patient Portal</h2>
-
-            <p class="subtitle">
-                Enter your patient code
-            </p>
-
-
-            <form id="patientLoginForm">
-
-                <label for="patientCode">
-                    Patient Code
-                </label>
-
-                <input
-                    type="text"
-                    id="patientCode"
-                    placeholder="XXXX-XXXX-XX"
-                    autocomplete="off"
-                    required
-                >
-
-
-                <button
-                    type="submit"
-                    class="primary-button"
-                >
-                    View My Results
-                </button>
-
-            </form>
-
-
-            <div
-                id="patientLoginMessage"
-                class="message"
-            ></div>
-
-
-            <button
-                id="backToLoginButton"
-                class="secondary-button"
-                type="button"
-            >
-                Back to Login
-            </button>
-
-        </div>
-
-    </main>
-
-
-    <!-- =========================================================
-         PATIENT RESULTS PAGE
-    ========================================================== -->
-    <main
-        id="patientResultsPage"
-        class="page hidden"
-    >
-
-        <div class="dashboard-header">
-
-            <div>
-
-                <h2>
-                    Patient Results
-                </h2>
-
-                <p id="patientName"></p>
-
-            </div>
-
-            <button
-                id="patientLogoutButton"
-                class="secondary-button"
-                type="button"
-            >
-                Logout
-            </button>
-
-        </div>
-
-
-        <section class="welcome-panel">
-
-            <h3>Patient Information</h3>
-
-            <div id="patientDetails"></div>
-
-        </section>
-
-
-        <section class="welcome-panel">
-
-            <h3>Measurements</h3>
-
-            <div id="patientMeasurements">
-                No measurements available.
-            </div>
-
-        </section>
-
-    </main>
+    </div>
 
 
     <!-- =========================================================
          MODAL
     ========================================================== -->
+
     <div
-        id="modal"
-        class="modal hidden"
+        id="modalBackdrop"
+        class="modal-backdrop hidden"
     >
 
-        <div class="modal-content">
+        <div
+            id="modal"
+            class="modal"
+            role="dialog"
+            aria-modal="true"
+        >
 
             <div class="modal-header">
 
-                <h2 id="modalTitle">
-                    Information
-                </h2>
+                <div>
+
+                    <div
+                        id="modalKicker"
+                        class="section-kicker"
+                    >
+                        INFORMATION
+                    </div>
+
+                    <h2 id="modalTitle">
+                        Modal
+                    </h2>
+
+                </div>
 
                 <button
                     id="modalCloseButton"
-                    type="button"
                     class="modal-close"
+                    type="button"
+                    aria-label="Close"
                 >
                     ×
                 </button>
 
             </div>
 
-            <div id="modalBody"></div>
+
+            <div
+                id="modalBody"
+                class="modal-body"
+            >
+            </div>
 
         </div>
 
     </div>
 
+
+    <div
+        id="toastContainer"
+        class="toast-container"
+    ></div>
+
 </div>
-
-
-<!-- =============================================================
-     SUPABASE CONFIG
-     config.js must create:
-     window.supabaseClient
-============================================================= -->
-<script src="js/config.js"></script>
-
-<script src="js/app.js"></script>
 
 </body>
 </html>
