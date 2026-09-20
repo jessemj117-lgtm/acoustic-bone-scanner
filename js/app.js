@@ -5155,6 +5155,10 @@ async function deleteOperatorAccount(
    DEVICE HELPER
 ================================================================ */
 
+/* ================================================================
+   DEVICE HELPER
+================================================================ */
+
 async function getScannerDevice() {
 
     const {
@@ -5181,7 +5185,56 @@ async function getScannerDevice() {
     }
 
 
-    return data;
+    if (!data) {
+        return null;
+    }
+
+
+    /*
+     * A device is considered online only when
+     * a heartbeat was received recently.
+     *
+     * ESP32 heartbeat interval = 15 seconds.
+     * 45 seconds gives a safety margin.
+     */
+    if (!data.last_seen) {
+
+        return {
+            ...data,
+            is_online: false
+        };
+    }
+
+
+    const lastSeen =
+        new Date(
+            data.last_seen
+        ).getTime();
+
+
+    if (!Number.isFinite(lastSeen)) {
+
+        return {
+            ...data,
+            is_online: false
+        };
+    }
+
+
+    const age =
+        Date.now() -
+        lastSeen;
+
+
+    const isOnline =
+        age >= 0 &&
+        age <= 45000;
+
+
+    return {
+        ...data,
+        is_online: isOnline
+    };
 }
 
 
