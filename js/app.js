@@ -831,7 +831,7 @@ function hideAuthViews() {
 }
 
 
-\function showStaffLogin() {
+function showStaffLogin() {
 
     // Clear patient portal state
     patientPortalPatient = null;
