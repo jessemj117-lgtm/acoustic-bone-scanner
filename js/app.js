@@ -3156,7 +3156,26 @@ async function createScanRequest(event) {
         toast("Scanner device ABS-001 was not found in Supabase.", "error");
         return;
     }
+if (!device.is_online) {
 
+    toast(
+        "ABS-001 is offline. Turn on the scanner and connect it to Wi-Fi before starting a scan.",
+        "error"
+    );
+
+    if (status) {
+        status.innerHTML = `
+            <div class="error-message">
+                <strong>Scanner offline</strong><br>
+                ABS-001 is not currently connected.
+                Turn on the scanner and connect it to Wi-Fi,
+                then try again.
+            </div>
+        `;
+    }
+
+    return;
+}
     const status = document.getElementById("scanRequestStatus");
 
     try {
