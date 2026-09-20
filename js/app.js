@@ -831,30 +831,32 @@ function hideAuthViews() {
 }
 
 
-function showStaffLogin() {
+\function showStaffLogin() {
 
+    // Clear patient portal state
     patientPortalPatient = null;
 
-    const portal =
-        document.getElementById(
-            "patientPortalScreen"
-        );
+    // Hide the patient portal
+    document
+        .getElementById("patientPortalScreen")
+        ?.classList.add("hidden");
 
-    if (portal) {
-        portal.classList.add("hidden");
-    }
+    // Hide the staff application
+    document
+        .getElementById("appScreen")
+        ?.classList.add("hidden");
 
-    const appScreen =
-        document.getElementById(
-            "appScreen"
-        );
+    // IMPORTANT:
+    // The authentication container itself was hidden
+    // when the patient portal was opened.
+    document
+        .getElementById("authScreen")
+        ?.classList.remove("hidden");
 
-    if (appScreen) {
-        appScreen.classList.add("hidden");
-    }
-
+    // Hide all authentication views
     hideAuthViews();
 
+    // Show the normal staff login
     document
         .getElementById("loginView")
         ?.classList.remove("hidden");
