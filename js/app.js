@@ -870,60 +870,23 @@ function showPatientLogin() {
    PATIENT PORTAL LOGIN
 ================================================================ */
 
-async function handlePatientLogin(event) {
-
-    event.preventDefault();
-
-
-    const form =
-        event.currentTarget;
-
-
-    const formData =
-        new FormData(form);
-
-
-    const code =
-        String(
-            formData.get("patient_code") || ""
-        ).trim();
-
-
-    const message =
-        document.getElementById(
-            "patientLoginMessage"
-        );
-
-
-    clearMessage(message);
-
-
-    if (!code) {
-
-        setMessage(
-            message,
-            "Please enter your patient code.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    const button =
-        form.querySelector(
-            'button[type="submit"]'
-        );
-
-
-    setButtonLoading(
-        button,
-        true,
-        "Checking..."
-    );
-
-
+async function handlePatientLogin() {
     try {
+        const form = document.getElementById("patientLoginForm");
+
+        if (!form) {
+            throw new Error("Patient login form not found.");
+        }
+
+        const codeInput = form.querySelector(
+            'input[name="patient_code"], #patientCode, #patientLoginCode'
+        );
+
+        const code = codeInput?.value?.trim();
+
+        if (!code) {
+            throw new Error("Please enter your patient code.");
+        }
 
         const {
             data,
@@ -935,59 +898,39 @@ async function handlePatientLogin(event) {
             }
         );
 
-
         if (error) {
             throw error;
         }
 
-
-        const patient =
-            Array.isArray(data)
-                ? data[0]
-                : data;
-
-
-        if (!patient) {
-
+        if (!data || data.success !== true || !data.patient) {
             throw new Error(
-                "Patient code was not found."
+                data?.message || "Invalid patient code."
             );
         }
 
+        // IMPORTANT:
+        // patient_login() returns:
+        // { success: true, patient: { id: "...", ... } }
+        const patient = data.patient;
 
-        patientPortalPatient =
-            patient;
+        if (!patient.id) {
+            throw new Error(
+                "Patient login succeeded, but no patient UUID was returned."
+            );
+        }
 
+        patientPortalPatient = patient;
 
         form.reset();
 
-
-        renderPatientPortal(
-            patient
-        );
-
+        await renderPatientPortal(patient);
 
     } catch (error) {
+        console.error("Patient login error:", error);
 
-        console.error(
-            "Patient login error:",
-            error
-        );
-
-
-        setMessage(
-            message,
-            error.message ||
-                "Unable to access patient results.",
-            "error"
-        );
-
-    } finally {
-
-        setButtonLoading(
-            button,
-            false,
-            "View my results"
+        alert(
+            error?.message ||
+            "Unable to load patient portal."
         );
     }
 }
