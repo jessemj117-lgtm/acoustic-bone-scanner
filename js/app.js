@@ -2859,12 +2859,15 @@ const scannerOnline =
                         "Scanner ID"
                     )}
 
-                    ${scannerInfoCard(
-                        "Status",
-                        device?.status ||
-                            "Unknown",
-                        "Reported status"
-                    )}
+                   ${scannerInfoCard(
+    "Status",
+    scannerOnline
+        ? "Online"
+        : "Offline",
+    scannerOnline
+        ? "Heartbeat received"
+        : "No recent heartbeat"
+)}
 
                     ${scannerInfoCard(
                         "Sweep",
