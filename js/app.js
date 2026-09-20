@@ -2790,7 +2790,8 @@ async function renderScanner() {
                 "ABS-001"
         ) ||
         devices?.[0];
-
+const scannerOnline =
+    isScannerOnline(device);
 
     content.innerHTML = `
 
