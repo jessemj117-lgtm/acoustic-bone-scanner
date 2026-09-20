@@ -3135,166 +3135,82 @@ async function loadScannerPatientSelector() {
    CREATE SCAN REQUEST
 ================================================================ */
 
-async function createScanRequest(
-    event
-) {
-
+async function createScanRequest(event) {
     event.preventDefault();
 
+    const form = event.currentTarget;
+    const data = Object.fromEntries(new FormData(form));
 
-    const form =
-        event.currentTarget;
-
-
-    const data =
-        Object.fromEntries(
-            new FormData(form)
-        );
-
-
-    const device =
-        await getScannerDevice();
-
+    const device = await getScannerDevice();
 
     if (!device) {
-
-        toast(
-            "Scanner device ABS-001 was not found in Supabase.",
-            "error"
-        );
-
+        toast("Scanner device ABS-001 was not found in Supabase.", "error");
         return;
     }
 
-
-    const status =
-        document.getElementById(
-            "scanRequestStatus"
-        );
-
+    const status = document.getElementById("scanRequestStatus");
 
     try {
-
         const {
             data: scanRequest,
             error: scanRequestError
         } = await db
             .from("scan_requests")
             .insert({
+                device_id: device.id,
+                patient_id: data.patient_id,
+                operator_id: currentUser.id,
 
-                device_id:
-                    device.id,
+                // Database allows only: patient or reference
+                scan_type: "patient",
 
-                patient_id:
-                    data.patient_id,
-
-                operator_id:
-                    currentUser.id,
-
-                scan_type:
-                    "bone_density",
-
-                status:
-                    "pending",
-
-                requested_at:
-                    new Date().toISOString(),
-
-                bone:
-                    data.bone,
-
-                side:
-                    data.side
-
+                status: "pending",
+                requested_at: new Date().toISOString(),
+                bone: data.bone || null,
+                side: data.side || null
             })
             .select("*")
             .single();
-
 
         if (scanRequestError) {
             throw scanRequestError;
         }
 
+        selectedPatientId = data.patient_id;
 
-        selectedPatientId =
-            data.patient_id;
-
-
-        status.innerHTML = `
-
-            <div
-                class="panel"
-                style="margin-top:20px"
-            >
-
-                <div class="panel-body">
-
-                    <span class="badge warning">
-                        Waiting for scanner
-                    </span>
-
-                    <h3 style="margin-top:12px">
-                        Scan request created
-                    </h3>
-
-                    <p>
-                        The scanner should receive the request
-                        when it is in Online mode.
-                    </p>
-
-                    <p>
-                        Request:
-                        <strong>
-                            ${escapeHtml(
-                                scanRequest.id
-                            )}
-                        </strong>
-                    </p>
-
-                    <div
-                        id="activeScanStatus"
-                        class="form-message info"
-                    >
-                        Waiting for ABS-001...
-                    </div>
-
+        if (status) {
+            status.innerHTML = `
+                <div class="success-message">
+                    Scan request created successfully.<br>
+                    Request ID: <strong>${escapeHtml(scanRequest.id)}</strong><br>
+                    Scanner: <strong>ABS-001</strong><br>
+                    Status: <strong>Waiting for scanner</strong>
                 </div>
-
-            </div>
-
-        `;
-
+            `;
+        }
 
         form.reset();
 
+        toast("Scan request sent to ABS-001.", "success");
 
-        toast(
-            "Scan request sent to ABS-001.",
-            "success"
-        );
-
-
-        monitorScanRequest(
-            scanRequest.id
-        );
-
+        monitorScanRequest(scanRequest.id);
 
     } catch (error) {
+        console.error("Create scan request error:", error);
 
-        console.error(
-            "Create scan request error:",
-            error
-        );
-
+        if (status) {
+            status.innerHTML = `
+                <div class="error-message">
+                    ${escapeHtml(error.message || "Unable to create scan request.")}
+                </div>
+            `;
+        }
 
         toast(
-            error.message ||
-            "Unable to create scan request.",
+            error.message || "Unable to create scan request.",
             "error"
         );
-
     }
-
 }
 
 /* ================================================================
