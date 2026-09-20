@@ -967,68 +967,77 @@ async function handlePatientLogin(event) {
    PATIENT PORTAL
 ================================================================ */
 
-async function renderPatientPortal(patient) {
-const patientId = patient?.id;
+/* ================================================================
+   PATIENT PORTAL
+================================================================ */
 
-if (!patientId) {
-    throw new Error("Invalid patient ID.");
-}
+async function renderPatientPortal(
+    patient
+) {
+
+    const patientId =
+        patient?.id;
+
+    if (!patientId) {
+
+        throw new Error(
+            "Invalid patient ID."
+        );
+
+    }
+
     document
         .getElementById("authScreen")
         ?.classList.add("hidden");
-
 
     document
         .getElementById("appScreen")
         ?.classList.add("hidden");
 
-
     document
         .getElementById("patientPortalScreen")
         ?.classList.remove("hidden");
-
 
     const container =
         document.getElementById(
             "patientPortalContent"
         );
 
+    if (!container) {
+
+        throw new Error(
+            "Patient portal container not found."
+        );
+
+    }
 
     container.innerHTML =
         renderLoading(
             "Loading your measurements..."
         );
 
-
     try {
 
-        const {
-            data: measurements,
-            error
-        } = await db
-            .from("measurements")
-            .select("*")
-            .eq(
-                "patient_id",
-                patient.id
+        /*
+         * patient_login() already returns the
+         * patient's measurements through its
+         * SECURITY DEFINER function.
+         *
+         * Do NOT query measurements directly
+         * from the public/browser role.
+         */
+
+        const measurements =
+            Array.isArray(
+                patient.measurements
             )
-            .order(
-                "created_at",
-                {
-                    ascending: false
-                }
-            );
-
-
-        if (error) {
-            throw error;
-        }
-
+                ? patient.measurements
+                : [];
 
         container.innerHTML =
             renderPatientResults(
                 patient,
-                measurements || []
+                measurements
             );
 
     } catch (error) {
@@ -1038,14 +1047,15 @@ if (!patientId) {
             error
         );
 
-
         container.innerHTML = `
 
             <div class="panel">
 
                 <div class="panel-body">
 
-                    <h2>Unable to load results</h2>
+                    <h2>
+                        Unable to load results
+                    </h2>
 
                     <p>
                         ${escapeHtml(
@@ -1059,7 +1069,9 @@ if (!patientId) {
             </div>
 
         `;
+
     }
+
 }
 
 
