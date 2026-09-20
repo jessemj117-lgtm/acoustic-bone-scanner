@@ -870,119 +870,31 @@ function showPatientLogin() {
    PATIENT PORTAL LOGIN
 ================================================================ */
 
-async function handlePatientLogin(event) {
+const patient =
+    data.patient;
 
-    event.preventDefault();
+if (!patient.id) {
 
-    const code =
-        document.getElementById(
-            "patientCode"
-        ).value.trim();
-
-    const message =
-        document.getElementById(
-            "patientLoginMessage"
-        );
-
-    if (!code) {
-
-        message.textContent =
-            "Please enter your patient code.";
-
-        message.className =
-            "message error";
-
-        return;
-    }
-
-    message.textContent =
-        "Loading results...";
-
-    message.className =
-        "message";
-
-    try {
-
-        const {
-            data,
-            error
-        } = await db.rpc(
-            "patient_login",
-            {
-                p_patient_code: code
-            }
-        );
-
-        if (error) {
-            throw error;
-        }
-
-        /*
-         * patient_login() returns:
-         *
-         * {
-         *     success: true,
-         *     patient: {
-         *         id: "...",
-         *         patient_code: "...",
-         *         ...
-         *     }
-         * }
-         */
-
-        if (
-            !data ||
-            data.success !== true ||
-            !data.patient
-        ) {
-
-            throw new Error(
-                data?.message ||
-                "Patient code not found."
-            );
-        }
-
-        const patient =
-            data.patient;
-
-        if (!patient.id) {
-
-            throw new Error(
-                "Patient login succeeded, but no patient ID was returned."
-            );
-        }
-
-        /*
-         * Keep the complete patient object.
-         */
-        currentPatientPortalData =
-            patient;
-
-        /*
-         * Open the patient portal directly.
-         *
-         * DO NOT call showStaffLogin().
-         * DO NOT call the normal staff authentication flow.
-         */
-        displayPatientPortal(
-            patient
-        );
-
-    } catch (error) {
-
-        console.error(
-            "Patient login error:",
-            error
-        );
-
-        message.textContent =
-            error.message ||
-            "Unable to find patient.";
-
-        message.className =
-            "message error";
-    }
+    throw new Error(
+        "Patient login succeeded, but no patient ID was returned."
+    );
 }
+
+/*
+ * Keep the complete patient object.
+ */
+currentPatientPortalData =
+    patient;
+
+/*
+ * Open the patient portal directly.
+ *
+ * DO NOT call showStaffLogin().
+ * DO NOT call the normal staff authentication flow.
+ */
+await renderPatientPortal(
+    patient
+);
 
 
 /* ================================================================
