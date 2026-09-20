@@ -5208,7 +5208,26 @@ function isStaff() {
 /* ================================================================
    USER HEADER
 ================================================================ */
+function isScannerOnline(device) {
 
+    if (!device?.last_seen) {
+        return false;
+    }
+
+    const lastSeen =
+        new Date(device.last_seen).getTime();
+
+    if (!Number.isFinite(lastSeen)) {
+        return false;
+    }
+
+    const age =
+        Date.now() - lastSeen;
+
+    // ESP32 heartbeat = every 15 seconds.
+    // Allow a 30-second safety margin.
+    return age >= 0 && age <= 45000;
+}
 function updateUserHeader() {
 
     const name =
