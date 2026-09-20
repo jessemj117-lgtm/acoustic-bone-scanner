@@ -833,13 +833,32 @@ function hideAuthViews() {
 
 function showStaffLogin() {
 
+    patientPortalPatient = null;
+
+    const portal =
+        document.getElementById(
+            "patientPortalScreen"
+        );
+
+    if (portal) {
+        portal.classList.add("hidden");
+    }
+
+    const appScreen =
+        document.getElementById(
+            "appScreen"
+        );
+
+    if (appScreen) {
+        appScreen.classList.add("hidden");
+    }
+
     hideAuthViews();
 
     document
         .getElementById("loginView")
         ?.classList.remove("hidden");
 }
-
 
 function showCreateAccount() {
 
