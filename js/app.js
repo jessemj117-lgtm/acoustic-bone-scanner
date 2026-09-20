@@ -940,10 +940,12 @@ async function handlePatientLogin() {
    PATIENT PORTAL
 ================================================================ */
 
-async function renderPatientPortal(
-    patient
-) {
+async function renderPatientPortal(patient) {
+const patientId = patient?.id;
 
+if (!patientId) {
+    throw new Error("Invalid patient ID.");
+}
     document
         .getElementById("authScreen")
         ?.classList.add("hidden");
