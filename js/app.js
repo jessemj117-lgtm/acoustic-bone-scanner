@@ -3175,32 +3175,18 @@ async function createScanRequest(
 
     try {
 
-        const {
-            data: request,
-            error
-        } = await db
-            .from("scan_requests")
-            .insert({
-
-                device_id:
-                    device.id,
-
-                patient_id:
-                    data.patient_id,
-
-                operator_id:
-                    currentUser.id,
-
-                status:
-                    "pending",
-
-                requested_at:
-                    new Date().toISOString()
-
-            })
-            .select("*")
-            .single();
-
+       const { data: scanRequest, error: scanRequestError } = await supabaseClient
+  .from("scan_requests")
+  .insert({
+    device_id: selectedDevice.id,
+    patient_id: patientId,
+    operator_id: currentUser.id,
+    scan_type: "bone_density",
+    status: "pending",
+    requested_at: new Date().toISOString()
+  })
+  .select("*")
+  .single();
 
         if (error) {
             throw error;
