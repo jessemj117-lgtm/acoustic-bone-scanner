@@ -3175,21 +3175,44 @@ async function createScanRequest(
 
     try {
 
-       const { data: scanRequest, error: scanRequestError } = await supabaseClient
-  .from("scan_requests")
-  .insert({
-    device_id: selectedDevice.id,
-    patient_id: patientId,
-    operator_id: currentUser.id,
-    scan_type: "bone_density",
-    status: "pending",
-    requested_at: new Date().toISOString()
-  })
-  .select("*")
-  .single();
+        const {
+            data: scanRequest,
+            error: scanRequestError
+        } = await db
+            .from("scan_requests")
+            .insert({
 
-        if (error) {
-            throw error;
+                device_id:
+                    device.id,
+
+                patient_id:
+                    data.patient_id,
+
+                operator_id:
+                    currentUser.id,
+
+                scan_type:
+                    "bone_density",
+
+                status:
+                    "pending",
+
+                requested_at:
+                    new Date().toISOString(),
+
+                bone:
+                    data.bone,
+
+                side:
+                    data.side
+
+            })
+            .select("*")
+            .single();
+
+
+        if (scanRequestError) {
+            throw scanRequestError;
         }
 
 
@@ -3199,7 +3222,10 @@ async function createScanRequest(
 
         status.innerHTML = `
 
-            <div class="panel" style="margin-top:20px">
+            <div
+                class="panel"
+                style="margin-top:20px"
+            >
 
                 <div class="panel-body">
 
@@ -3220,7 +3246,7 @@ async function createScanRequest(
                         Request:
                         <strong>
                             ${escapeHtml(
-                                request.id
+                                scanRequest.id
                             )}
                         </strong>
                     </p>
@@ -3249,7 +3275,7 @@ async function createScanRequest(
 
 
         monitorScanRequest(
-            request.id
+            scanRequest.id
         );
 
 
@@ -3266,9 +3292,10 @@ async function createScanRequest(
             "Unable to create scan request.",
             "error"
         );
-    }
-}
 
+    }
+
+}
 
 /* ================================================================
    SCAN REQUEST POLLING
