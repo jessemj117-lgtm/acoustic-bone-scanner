@@ -5973,15 +5973,13 @@ function renderMeasurementRow(
 
             <td>
                 ${escapeHtml(
-                    measurement.bone ||
-                    "—"
+                    measurement.profile_bone || measurement.bone || "—"
                 )}
             </td>
 
             <td>
                 ${escapeHtml(
-                    measurement.side ||
-                    "—"
+                    measurement.profile_side || measurement.side || "—"
                 )}
             </td>
 
