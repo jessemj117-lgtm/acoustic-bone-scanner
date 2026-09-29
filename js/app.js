@@ -1162,6 +1162,10 @@ function renderPatientResults(
                         latest
                     )}
 
+                    ${renderFrequencyResponseGraph(
+                        latest
+                    )}
+
                 </div>
 
             </div>
@@ -5847,6 +5851,588 @@ function infoItem(
 
 
 /* ================================================================
+   FRIENDLY FREQUENCY RESPONSE VISUALIZATION
+================================================================ */
+
+function renderFrequencyResponseGraph(measurement) {
+
+    const rawPoints =
+        Array.isArray(measurement?.frequency_response)
+            ? measurement.frequency_response
+            : [];
+
+    const points = rawPoints
+        .map(point => ({
+            frequency: Number(
+                point?.frequency ??
+                point?.freq
+            ),
+            rms: Number(
+                point?.rms ??
+                point?.response ??
+                point?.value
+            )
+        }))
+        .filter(point =>
+            Number.isFinite(point.frequency) &&
+            Number.isFinite(point.rms)
+        )
+        .sort((a, b) =>
+            a.frequency - b.frequency
+        );
+
+    if (!points.length) {
+        return `
+            <div class="scan-visualization-panel">
+                <div class="scan-visualization-header">
+                    <div>
+                        <div class="section-kicker">
+                            ACOUSTIC RESPONSE
+                        </div>
+                        <h3>
+                            Frequency response
+                        </h3>
+                    </div>
+                </div>
+                <div class="empty-state">
+                    <div class="empty-state-icon">📈</div>
+                    <p>
+                        Frequency-response data is not available for this measurement.
+                    </p>
+                </div>
+            </div>
+        `;
+    }
+
+    const width = 900;
+    const height = 430;
+    const left = 78;
+    const right = 28;
+    const top = 42;
+    const bottom = 70;
+    const plotWidth = width - left - right;
+    const plotHeight = height - top - bottom;
+
+    const minFrequency = Math.min(
+        ...points.map(point => point.frequency)
+    );
+    const maxFrequency = Math.max(
+        ...points.map(point => point.frequency)
+    );
+
+    const maxRms = Math.max(
+        ...points.map(point => point.rms),
+        0
+    );
+
+    const frequencySpan =
+        maxFrequency - minFrequency || 1;
+
+    const responseMax =
+        maxRms > 0
+            ? maxRms * 1.12
+            : 1;
+
+    const x = frequency =>
+        left +
+        ((frequency - minFrequency) / frequencySpan) *
+        plotWidth;
+
+    const y = rms =>
+        top +
+        plotHeight -
+        (rms / responseMax) *
+        plotHeight;
+
+    const path = points
+        .map((point, index) =>
+            `${index === 0 ? "M" : "L"} ${x(point.frequency).toFixed(2)} ${y(point.rms).toFixed(2)}`
+        )
+        .join(" ");
+
+    const areaPath =
+        `${path} L ${x(points[points.length - 1].frequency).toFixed(2)} ${y(0).toFixed(2)} L ${x(points[0].frequency).toFixed(2)} ${y(0).toFixed(2)} Z`;
+
+    const peakPoint =
+        points.reduce(
+            (best, point) =>
+                point.rms > best.rms
+                    ? point
+                    : best,
+            points[0]
+        );
+
+    const resonance = Number(measurement?.f0);
+    const resonancePoint =
+        Number.isFinite(resonance)
+            ? points.reduce(
+                (best, point) =>
+                    Math.abs(point.frequency - resonance) <
+                    Math.abs(best.frequency - resonance)
+                        ? point
+                        : best,
+                points[0]
+            )
+            : peakPoint;
+
+    const resonanceX =
+        x(resonancePoint.frequency);
+    const resonanceY =
+        y(resonancePoint.rms);
+
+    const bandwidth = Number(
+        measurement?.bandwidth
+    );
+    const hasBandwidth =
+        Number.isFinite(bandwidth) &&
+        bandwidth > 0;
+
+    const halfPowerY =
+        peakPoint.rms / Math.sqrt(2);
+
+    const halfPowerLineY = y(halfPowerY);
+
+    const xTicks = 5;
+    const yTicks = 4;
+
+    let grid = "";
+
+    for (let i = 0; i <= xTicks; i++) {
+        const frequency =
+            minFrequency +
+            (frequencySpan * i) / xTicks;
+        const tickX = x(frequency);
+
+        grid += `
+            <line
+                x1="${tickX.toFixed(2)}"
+                y1="${top}"
+                x2="${tickX.toFixed(2)}"
+                y2="${top + plotHeight}"
+                class="scan-chart-grid"
+            />
+            <text
+                x="${tickX.toFixed(2)}"
+                y="${top + plotHeight + 30}"
+                text-anchor="middle"
+                class="scan-chart-axis-label"
+            >${Math.round(frequency)} Hz</text>
+        `;
+    }
+
+    for (let i = 0; i <= yTicks; i++) {
+        const value =
+            (responseMax * i) / yTicks;
+        const tickY = y(value);
+
+        grid += `
+            <line
+                x1="${left}"
+                y1="${tickY.toFixed(2)}"
+                x2="${left + plotWidth}"
+                y2="${tickY.toFixed(2)}"
+                class="scan-chart-grid"
+            />
+            <text
+                x="${left - 12}"
+                y="${(tickY + 4).toFixed(2)}"
+                text-anchor="end"
+                class="scan-chart-axis-label"
+            >${value.toFixed(3)}</text>
+        `;
+    }
+
+    const qualityGood =
+        measurement?.result_valid !== false &&
+        measurement?.signal_valid !== false &&
+        measurement?.clear_peak !== false;
+
+    const qualityText = qualityGood
+        ? "The scanner detected a usable response curve and a clear measured peak."
+        : "The scan contains a response curve, but its quality flags indicate that the result should be interpreted cautiously.";
+
+    return `
+        <div class="scan-visualization-panel">
+            <style>
+                .scan-visualization-panel {
+                    margin-top: 24px;
+                    padding: 22px;
+                    border: 1px solid rgba(100, 116, 139, 0.22);
+                    border-radius: 18px;
+                    background: linear-gradient(180deg, rgba(248, 250, 252, 0.98), rgba(255, 255, 255, 0.98));
+                }
+                .scan-visualization-header {
+                    display: flex;
+                    justify-content: space-between;
+                    gap: 20px;
+                    align-items: flex-start;
+                    margin-bottom: 14px;
+                }
+                .scan-visualization-header h3 {
+                    margin: 4px 0 6px;
+                }
+                .scan-visualization-header p {
+                    margin: 0;
+                    max-width: 720px;
+                }
+                .scan-peak-badge {
+                    min-width: 190px;
+                    padding: 12px 14px;
+                    border-radius: 12px;
+                    background: rgba(15, 23, 42, 0.05);
+                    text-align: center;
+                }
+                .scan-peak-badge span {
+                    display: block;
+                    font-size: 12px;
+                    margin-bottom: 5px;
+                }
+                .scan-peak-badge strong {
+                    font-size: 22px;
+                }
+                .scan-chart-wrap {
+                    width: 100%;
+                    overflow-x: auto;
+                    border-radius: 14px;
+                    background: #ffffff;
+                    border: 1px solid rgba(100, 116, 139, 0.18);
+                }
+                .scan-frequency-chart {
+                    display: block;
+                    width: 100%;
+                    min-width: 680px;
+                    height: auto;
+                }
+                .scan-chart-grid {
+                    stroke: rgba(100, 116, 139, 0.16);
+                    stroke-width: 1;
+                }
+                .scan-chart-axis {
+                    stroke: rgba(15, 23, 42, 0.55);
+                    stroke-width: 1.5;
+                }
+                .scan-chart-axis-label {
+                    fill: #64748b;
+                    font-size: 12px;
+                }
+                .scan-chart-axis-title {
+                    fill: #334155;
+                    font-size: 13px;
+                    font-weight: 600;
+                }
+                .scan-chart-area {
+                    fill: rgba(59, 130, 246, 0.10);
+                    stroke: none;
+                }
+                .scan-chart-line {
+                    fill: none;
+                    stroke: #2563eb;
+                    stroke-width: 3;
+                    stroke-linejoin: round;
+                    stroke-linecap: round;
+                }
+                .scan-chart-point {
+                    fill: #2563eb;
+                    stroke: #ffffff;
+                    stroke-width: 1.5;
+                }
+                .scan-chart-resonance {
+                    stroke: #dc2626;
+                    stroke-width: 2;
+                    stroke-dasharray: 7 6;
+                }
+                .scan-chart-peak {
+                    fill: #dc2626;
+                    stroke: #ffffff;
+                    stroke-width: 3;
+                }
+                .scan-chart-peak-label {
+                    fill: #991b1b;
+                    font-size: 14px;
+                    font-weight: 700;
+                }
+                .scan-chart-half-power {
+                    stroke: #64748b;
+                    stroke-width: 1.5;
+                    stroke-dasharray: 4 5;
+                }
+                .scan-chart-annotation {
+                    fill: #475569;
+                    font-size: 12px;
+                    font-weight: 600;
+                }
+                .scan-explanation-grid {
+                    display: grid;
+                    grid-template-columns: repeat(3, minmax(0, 1fr));
+                    gap: 12px;
+                    margin-top: 16px;
+                }
+                .scan-explanation-card {
+                    padding: 14px;
+                    border-radius: 12px;
+                    background: rgba(241, 245, 249, 0.8);
+                }
+                .scan-explanation-card strong {
+                    display: block;
+                    margin-bottom: 6px;
+                    font-size: 14px;
+                }
+                .scan-explanation-card p {
+                    margin: 0;
+                    font-size: 13px;
+                    line-height: 1.5;
+                }
+                .scan-quality-note {
+                    margin-top: 16px;
+                    padding: 14px 16px;
+                    border-radius: 12px;
+                }
+                .scan-quality-note.good {
+                    background: rgba(22, 163, 74, 0.08);
+                }
+                .scan-quality-note.attention {
+                    background: rgba(234, 88, 12, 0.09);
+                }
+                .scan-quality-note p {
+                    margin: 4px 0 0;
+                }
+                .scan-technical-details {
+                    margin-top: 16px;
+                    border-top: 1px solid rgba(100, 116, 139, 0.18);
+                    padding-top: 14px;
+                }
+                .scan-technical-details summary {
+                    cursor: pointer;
+                    font-weight: 700;
+                }
+                .scan-technical-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, minmax(0, 1fr));
+                    gap: 10px;
+                    margin-top: 12px;
+                }
+                .scan-visualization-disclaimer {
+                    margin: 16px 0 0;
+                    font-size: 12px;
+                    line-height: 1.5;
+                    color: #64748b;
+                }
+                @media (max-width: 800px) {
+                    .scan-visualization-header,
+                    .scan-explanation-grid,
+                    .scan-technical-grid {
+                        grid-template-columns: 1fr;
+                    }
+                    .scan-visualization-header {
+                        display: block;
+                    }
+                    .scan-peak-badge {
+                        margin-top: 12px;
+                    }
+                }
+            </style>
+
+            <div class="scan-visualization-header">
+                <div>
+                    <div class="section-kicker">
+                        HOW THE BONE RESPONDED
+                    </div>
+                    <h3>
+                        Acoustic frequency response
+                    </h3>
+                    <p>
+                        The scanner changes the input frequency and measures the strength of the detected response.
+                    </p>
+                </div>
+
+                <div class="scan-peak-badge">
+                    <span>Strongest measured response</span>
+                    <strong>
+                        ${Number.isFinite(resonance)
+                            ? `${formatNumber(resonance)} Hz`
+                            : "Not available"}
+                    </strong>
+                </div>
+            </div>
+
+            <div class="scan-chart-wrap">
+                <svg
+                    class="scan-frequency-chart"
+                    viewBox="0 0 ${width} ${height}"
+                    role="img"
+                    aria-label="Acoustic frequency response graph"
+                    preserveAspectRatio="xMidYMid meet"
+                >
+                    ${grid}
+
+                    <line
+                        x1="${left}"
+                        y1="${top + plotHeight}"
+                        x2="${left + plotWidth}"
+                        y2="${top + plotHeight}"
+                        class="scan-chart-axis"
+                    />
+
+                    <line
+                        x1="${left}"
+                        y1="${top}"
+                        x2="${left}"
+                        y2="${top + plotHeight}"
+                        class="scan-chart-axis"
+                    />
+
+                    <path
+                        d="${areaPath}"
+                        class="scan-chart-area"
+                    />
+
+                    ${hasBandwidth
+                        ? `
+                            <line
+                                x1="${left}"
+                                y1="${halfPowerLineY.toFixed(2)}"
+                                x2="${left + plotWidth}"
+                                y2="${halfPowerLineY.toFixed(2)}"
+                                class="scan-chart-half-power"
+                            />
+                            <text
+                                x="${left + 8}"
+                                y="${Math.max(top + 16, halfPowerLineY - 8).toFixed(2)}"
+                                class="scan-chart-annotation"
+                            >Half-power level</text>
+                        `
+                        : ""}
+
+                    ${hasBandwidth
+                        ? `
+                            <text
+                                x="${left + plotWidth - 8}"
+                                y="${Math.max(top + 18, halfPowerLineY - 8).toFixed(2)}"
+                                text-anchor="end"
+                                class="scan-chart-annotation"
+                            >Measured bandwidth: ${formatNumber(bandwidth)} Hz</text>
+                        `
+                        : ""}
+
+                    <path
+                        d="${path}"
+                        class="scan-chart-line"
+                    />
+
+                    ${points.map(point => `
+                        <circle
+                            cx="${x(point.frequency).toFixed(2)}"
+                            cy="${y(point.rms).toFixed(2)}"
+                            r="3.2"
+                            class="scan-chart-point"
+                        />
+                    `).join("")}
+
+                    <line
+                        x1="${resonanceX.toFixed(2)}"
+                        y1="${top}"
+                        x2="${resonanceX.toFixed(2)}"
+                        y2="${top + plotHeight}"
+                        class="scan-chart-resonance"
+                    />
+
+                    <circle
+                        cx="${resonanceX.toFixed(2)}"
+                        cy="${resonanceY.toFixed(2)}"
+                        r="8"
+                        class="scan-chart-peak"
+                    />
+
+                    <text
+                        x="${resonanceX.toFixed(2)}"
+                        y="${Math.max(20, resonanceY - 18).toFixed(2)}"
+                        text-anchor="middle"
+                        class="scan-chart-peak-label"
+                    >★ ${Number.isFinite(resonance) ? `${formatNumber(resonance)} Hz` : "Peak"}</text>
+
+                    <text
+                        x="${left + plotWidth / 2}"
+                        y="${height - 12}"
+                        text-anchor="middle"
+                        class="scan-chart-axis-title"
+                    >Input / excitation frequency</text>
+
+                    <text
+                        x="18"
+                        y="${top + plotHeight / 2}"
+                        text-anchor="middle"
+                        transform="rotate(-90 18 ${top + plotHeight / 2})"
+                        class="scan-chart-axis-title"
+                    >Measured response strength (RMS)</text>
+                </svg>
+            </div>
+
+            <div class="scan-explanation-grid">
+                <div class="scan-explanation-card">
+                    <strong>① The scanner sends different frequencies</strong>
+                    <p>
+                        The input frequency is swept across the measurement range.
+                    </p>
+                </div>
+
+                <div class="scan-explanation-card">
+                    <strong>② The receiver measures the response</strong>
+                    <p>
+                        Each point on the graph represents the measured response at that frequency.
+                    </p>
+                </div>
+
+                <div class="scan-explanation-card">
+                    <strong>③ The peak shows the strongest measured response</strong>
+                    <p>
+                        The marked peak is the measured resonance frequency used by the experimental analysis.
+                    </p>
+                </div>
+            </div>
+
+            <div class="scan-quality-note ${qualityGood ? "good" : "attention"}">
+                <strong>${qualityGood ? "✓ Scan quality" : "⚠ Scan quality"}</strong>
+                <p>${escapeHtml(qualityText)}</p>
+            </div>
+
+            <details class="scan-technical-details">
+                <summary>Technical measurements</summary>
+                <div class="scan-technical-grid">
+                    ${resultCard(
+                        "Resonance f0",
+                        formatNumber(measurement.f0),
+                        "Hz"
+                    )}
+                    ${resultCard(
+                        "RMS",
+                        formatNumber(measurement.rms),
+                        ""
+                    )}
+                    ${resultCard(
+                        "Bandwidth",
+                        formatNumber(measurement.bandwidth),
+                        "Hz"
+                    )}
+                    ${resultCard(
+                        "Q factor",
+                        measurement.q_available === false
+                            ? "N/A"
+                            : formatNumber(measurement.q ?? measurement.q_factor),
+                        ""
+                    )}
+                </div>
+            </details>
+
+            <p class="scan-visualization-disclaimer">
+                This graph shows the acoustic response measured during the scan. It is experimental research data and is not a DEXA measurement or a clinical diagnosis.
+            </p>
+
+        </div>
+    `;
+}
+
+
+/* ================================================================
    MEASUREMENT DISPLAY
 ================================================================ */
 
@@ -5973,13 +6559,15 @@ function renderMeasurementRow(
 
             <td>
                 ${escapeHtml(
-                    measurement.profile_bone || measurement.bone || "—"
+                    measurement.bone ||
+                    "—"
                 )}
             </td>
 
             <td>
                 ${escapeHtml(
-                    measurement.profile_side || measurement.side || "—"
+                    measurement.side ||
+                    "—"
                 )}
             </td>
 
