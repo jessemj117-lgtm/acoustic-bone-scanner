@@ -1510,7 +1510,7 @@ function showPatientLogin() {
 
 /* ================================================================
    SHOW CREATE ACCOUNT
-===============================================================================
+================================================================ */
 
 function showCreateAccount() {
 
@@ -3356,8 +3356,25 @@ function renderPatientMeasurementRow(
 ================================================================ */
 
 function renderMeasurementRow(
-    measurement
+    measurement,
+    index
 ) {
+
+    const measurementId =
+        String(
+            measurement?.id ||
+            `measurement-${index || 0}`
+        );
+
+    const graphId =
+        `staffMeasurementGraph-${measurementId}`;
+
+    const buttonId =
+        `staffMeasurementGraphButton-${measurementId}`;
+
+    const qValue =
+        measurement?.q_factor ??
+        measurement?.q;
 
     return `
 
@@ -3392,17 +3409,117 @@ function renderMeasurementRow(
 
             <td>
                 ${
-                    measurement.q_factor == null
+                    qValue == null ||
+                    qValue === "" ||
+                    Number.isNaN(
+                        Number(qValue)
+                    )
                         ? "—"
-                        : Number(
-                            measurement.q_factor
-                        ).toFixed(3)
+                        : Number(qValue).toFixed(3)
                 }
+            </td>
+
+            <td>
+                ${escapeHtml(
+                    measurement.profile_bone ||
+                    measurement.bone ||
+                    "—"
+                )}
+            </td>
+
+            <td>
+                ${escapeHtml(
+                    measurement.profile_side ||
+                    measurement.side ||
+                    "—"
+                )}
+            </td>
+
+            <td>
+                <div
+                    style="
+                        display:flex;
+                        flex-direction:column;
+                        gap:8px;
+                        min-width:180px;
+                    "
+                >
+
+                    <button
+                        id="${buttonId}"
+                        class="button small secondary"
+                        type="button"
+                        onclick="toggleStaffMeasurementGraph('${escapeJsString(measurementId)}')"
+                    >
+                        View frequency-response graph
+                    </button>
+
+                    <div
+                        id="${graphId}"
+                        class="hidden"
+                        style="margin-top:6px;"
+                    >
+                        ${renderFrequencyResponseGraph(
+                            measurement
+                        )}
+                    </div>
+
+                    <button
+                        class="button small danger"
+                        type="button"
+                        onclick="deleteMeasurement(
+                            '${escapeJsString(measurement.id)}',
+                            '${escapeJsString(measurement.patient_id || "")}'
+                        )"
+                    >
+                        Delete
+                    </button>
+
+                </div>
             </td>
 
         </tr>
 
     `;
+}
+
+
+function toggleStaffMeasurementGraph(
+    measurementId
+) {
+
+    if (!measurementId) {
+        return;
+    }
+
+    const panel =
+        document.getElementById(
+            `staffMeasurementGraph-${measurementId}`
+        );
+
+    const button =
+        document.getElementById(
+            `staffMeasurementGraphButton-${measurementId}`
+        );
+
+    if (!panel) {
+        return;
+    }
+
+    const isHidden =
+        panel.classList.contains("hidden");
+
+    panel.classList.toggle(
+        "hidden",
+        !isHidden
+    );
+
+    if (button) {
+        button.textContent =
+            isHidden
+                ? "Hide frequency-response graph"
+                : "View frequency-response graph";
+    }
 }
 
 
@@ -5220,7 +5337,8 @@ async function viewPatient(
 
                     <p>
                         ${measurements?.length || 0}
-                        recorded measurements
+                        recorded measurements.
+                        Each measurement includes its own frequency-response graph.
                     </p>
 
                 </div>
@@ -5253,7 +5371,11 @@ async function viewPatient(
 
                                     ${measurements
                                         .map(
-                                            renderMeasurementRow
+                                            (measurement, index) =>
+                                                renderMeasurementRow(
+                                                    measurement,
+                                                    index
+                                                )
                                         )
                                         .join("")}
 
@@ -5964,6 +6086,9 @@ async function createScanRequest(
 
             device_id:
                 device.id,
+
+            scan_type:
+                "patient",
 
             bone:
                 bone,
@@ -9293,3 +9418,4 @@ window.deleteReferenceSample = deleteReferenceSample;
 window.closeModal = closeModal;
 window.toggleSidebar = toggleSidebar;
 window.togglePatientMeasurementGraph = togglePatientMeasurementGraph;
+window.toggleStaffMeasurementGraph = toggleStaffMeasurementGraph;
