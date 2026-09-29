@@ -3275,6 +3275,18 @@ function renderPatientMeasurementRow(
     const qValue =
         measurement.q_factor;
 
+    const measurementId =
+        String(
+            measurement?.id ||
+            `measurement-${Date.now()}`
+        );
+
+    const graphId =
+        `staffMeasurementGraph-${measurementId}`;
+
+    const buttonId =
+        `staffMeasurementGraphButton-${measurementId}`;
+
 
     return `
 
@@ -3337,16 +3349,46 @@ function renderPatientMeasurementRow(
 
             <td>
 
-                <button
-                    class="button small danger"
-                    type="button"
-                    onclick="deleteMeasurement(
-                        '${escapeJsString(measurement.id)}',
-                        '${escapeJsString(measurement.patient_id || "")}'
-                    )"
+                <div
+                    style="
+                        display:flex;
+                        flex-direction:column;
+                        gap:8px;
+                        min-width:190px;
+                    "
                 >
-                    Delete
-                </button>
+
+                    <button
+                        id="${buttonId}"
+                        class="button small secondary"
+                        type="button"
+                        onclick="toggleStaffMeasurementGraph('${escapeJsString(measurementId)}')"
+                    >
+                        View frequency-response graph
+                    </button>
+
+                    <div
+                        id="${graphId}"
+                        class="hidden"
+                        style="margin-top:6px;"
+                    >
+                        ${renderFrequencyResponseGraph(
+                            measurement
+                        )}
+                    </div>
+
+                    <button
+                        class="button small danger"
+                        type="button"
+                        onclick="deleteMeasurement(
+                            '${escapeJsString(measurement.id)}',
+                            '${escapeJsString(measurement.patient_id || "")}'
+                        )"
+                    >
+                        Delete
+                    </button>
+
+                </div>
 
             </td>
 
