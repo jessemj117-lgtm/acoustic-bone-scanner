@@ -1256,6 +1256,20 @@ function buildNavigation() {
    NAVIGATE
 ================================================================ */
 
+function showContent(html) {
+
+    const content =
+        document.getElementById("mainContent");
+
+    if (!content) {
+        return;
+    }
+
+    content.innerHTML =
+        html || "";
+}
+
+
 async function navigate(page) {
 
     if (!page) {
@@ -8547,6 +8561,10 @@ function openModal(
     }
 
     modal.classList.remove("hidden");
+
+    document
+        .getElementById("modalBackdrop")
+        ?.classList.remove("hidden");
 }
 
 
