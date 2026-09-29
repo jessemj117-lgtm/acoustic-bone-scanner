@@ -2795,6 +2795,9 @@ async function submitPatientScanRequest(
                 device_id:
                     device.id,
 
+                scan_type:
+                    "patient",
+
                 status:
                     "pending",
 
@@ -3445,26 +3448,14 @@ function renderMeasurementRow(
                     "
                 >
 
-                    <div
-                        style="
-                            padding:10px 12px;
-                            border:1px solid rgba(59,130,246,.25);
-                            border-radius:10px;
-                            background:rgba(59,130,246,.06);
-                        "
+                    <button
+                        id="${buttonId}"
+                        class="button small secondary"
+                        type="button"
+                        onclick="toggleStaffMeasurementGraph('${escapeJsString(measurementId)}')"
                     >
-                        <strong style="display:block;margin-bottom:6px;">
-                            Frequency response
-                        </strong>
-                        <button
-                            id="${buttonId}"
-                            class="button small secondary"
-                            type="button"
-                            onclick="toggleStaffMeasurementGraph('${escapeJsString(measurementId)}')"
-                        >
-                            View frequency-response graph
-                        </button>
-                    </div>
+                        View frequency-response graph
+                    </button>
 
                     <div
                         id="${graphId}"
@@ -5360,40 +5351,17 @@ async function viewPatient(
             ${
                 measurements?.length
                     ? `
-                        <div class="table-wrap">
+                        <div style="display:flex; flex-direction:column; gap:16px;">
 
-                            <table>
-
-                                <thead>
-
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>f0</th>
-                                        <th>RMS</th>
-                                        <th>Bandwidth</th>
-                                        <th>Q</th>
-                                        <th>Bone</th>
-                                        <th>Side</th>
-                                        <th>Action</th>
-                                    </tr>
-
-                                </thead>
-
-                                <tbody>
-
-                                    ${measurements
-                                        .map(
-                                            (measurement, index) =>
-                                                renderMeasurementRow(
-                                                    measurement,
-                                                    index
-                                                )
+                            ${measurements
+                                .map(
+                                    (measurement, index) =>
+                                        renderPatientMeasurementCard(
+                                            measurement,
+                                            index
                                         )
-                                        .join("")}
-
-                                </tbody>
-
-                            </table>
+                                )
+                                .join("")}
 
                         </div>
                     `
