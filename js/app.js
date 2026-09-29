@@ -5038,14 +5038,30 @@ async function savePatient(
 
 
             const {
+                data: createdPatient,
                 error
-            } = await db
-                .from("patients")
-                .insert(payload);
+            } = await db.rpc(
+                "create_patient",
+                {
+                    p_name: payload.name,
+                    p_age: payload.age,
+                    p_sex: payload.sex,
+                    p_notes: payload.notes,
+                    p_patient_code: payload.patient_code
+                }
+            );
 
 
             if (error) {
                 throw error;
+            }
+
+
+            if (createdPatient?.success === false) {
+                throw new Error(
+                    createdPatient.message ||
+                    "Patient could not be created."
+                );
             }
 
 
