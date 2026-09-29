@@ -594,26 +594,21 @@ async function handleCreateAccount(event) {
 
 
             toast(
-                "Operator account created.",
+                "Operator account created successfully.",
                 "success"
             );
-
 
         } else {
 
-            /*
-             * Email confirmation is enabled.
-             */
+            form.reset();
+
 
             setMessage(
                 message,
-                "Account created. Check your email, confirm the account, then return here and sign in.",
+                "Account created. Check your email if confirmation is required, then sign in.",
                 "success"
             );
-
-            form.reset();
         }
-
 
     } catch (error) {
 
@@ -626,7 +621,7 @@ async function handleCreateAccount(event) {
         setMessage(
             message,
             error.message ||
-                "Unable to create account.",
+            "Unable to create account.",
             "error"
         );
 
@@ -638,6 +633,55 @@ async function handleCreateAccount(event) {
             "Create account"
         );
     }
+}
+
+
+/* ================================================================
+   LOAD CURRENT PROFILE
+================================================================ */
+
+async function loadCurrentProfile() {
+
+    if (!currentUser?.id) {
+
+        currentProfile = null;
+
+        return;
+    }
+
+
+    const {
+        data,
+        error
+    } = await db
+        .from("profiles")
+        .select("*")
+        .eq(
+            "id",
+            currentUser.id
+        )
+        .maybeSingle();
+
+
+    if (error) {
+
+        console.error(
+            "Profile load error:",
+            error
+        );
+
+        throw error;
+    }
+
+
+    currentProfile =
+        data || null;
+
+
+    updateUserHeader();
+
+
+    return currentProfile;
 }
 
 
@@ -659,249 +703,86 @@ async function ensureOperatorProfile(
         error
     } = await db
         .from("profiles")
-        .upsert({
-
-            id: userId,
-
-            name:
-                name ||
-                "Operator",
-
-            role: "operator"
-
-        });
-
-
-    if (error) {
-
-        console.warn(
-            "Could not automatically create profile:",
-            error
+        .upsert(
+            {
+                id: userId,
+                name:
+                    name ||
+                    "Operator",
+                role: "operator"
+            },
+            {
+                onConflict: "id"
+            }
         );
-    }
-}
-
-
-/* ================================================================
-   LOAD PROFILE
-================================================================ */
-
-async function loadCurrentProfile() {
-
-    if (!currentUser) {
-
-        currentProfile = null;
-
-        return null;
-    }
-
-
-    const {
-        data,
-        error
-    } = await db
-        .from("profiles")
-        .select("*")
-        .eq(
-            "id",
-            currentUser.id
-        )
-        .maybeSingle();
 
 
     if (error) {
-        throw error;
-    }
-
-
-    currentProfile =
-        data || null;
-
-
-    return currentProfile;
-}
-
-
-/* ================================================================
-   LOGOUT
-================================================================ */
-
-async function logout() {
-
-    try {
-
-        await db.auth.signOut();
-
-    } catch (error) {
 
         console.error(
-            "Logout error:",
+            "Profile creation error:",
             error
         );
+
+        throw error;
     }
-
-
-    currentUser = null;
-    currentProfile = null;
-
-
-    stopScanPolling();
-
-
-    showAuthScreen();
-
-
-    toast(
-        "You have been signed out.",
-        "success"
-    );
 }
 
 
 /* ================================================================
-   SCREEN MANAGEMENT
-================================================================ */
-
-function showAuthScreen() {
-
-    document
-        .getElementById("authScreen")
-        ?.classList.remove("hidden");
-
-
-    document
-        .getElementById("appScreen")
-        ?.classList.add("hidden");
-
-
-    document
-        .getElementById("patientPortalScreen")
-        ?.classList.add("hidden");
-
-
-    showStaffLogin();
-}
-
-
-function showApplication() {
-
-    document
-        .getElementById("authScreen")
-        ?.classList.add("hidden");
-
-
-    document
-        .getElementById("patientPortalScreen")
-        ?.classList.add("hidden");
-
-
-    document
-        .getElementById("appScreen")
-        ?.classList.remove("hidden");
-
-
-    updateUserHeader();
-
-
-    buildNavigation();
-
-
-    navigate(
-        "dashboard"
-    );
-}
-
-
-/* ================================================================
-   AUTH VIEWS
-================================================================ */
-
-function hideAuthViews() {
-
-    [
-        "loginView",
-        "createAccountView",
-        "patientLoginView"
-    ].forEach(id => {
-
-        document
-            .getElementById(id)
-            ?.classList.add("hidden");
-    });
-}
-
-
-function showStaffLogin() {
-
-    hideAuthViews();
-
-    document
-        .getElementById("loginView")
-        ?.classList.remove("hidden");
-}
-
-
-function showCreateAccount() {
-
-    hideAuthViews();
-
-    document
-        .getElementById("createAccountView")
-        ?.classList.remove("hidden");
-
-
-    document
-        .getElementById("createAccountMessage")
-        ?.replaceChildren();
-}
-
-
-function showPatientLogin() {
-
-    hideAuthViews();
-
-    document
-        .getElementById("patientLoginView")
-        ?.classList.remove("hidden");
-}
-
-
-/* ================================================================
-   PATIENT PORTAL LOGIN
+   PATIENT LOGIN
 ================================================================ */
 
 async function handlePatientLogin(event) {
 
     event.preventDefault();
 
+
+    const form =
+        event.currentTarget;
+
+
+    const formData =
+        new FormData(form);
+
+
     const code =
-        document.getElementById(
-            "patientCode"
-        ).value.trim();
+        String(
+            formData.get("patient_code") ||
+            formData.get("code") ||
+            ""
+        ).trim();
+
 
     const message =
         document.getElementById(
             "patientLoginMessage"
         );
 
+
+    clearMessage(message);
+
+
     if (!code) {
 
-        message.textContent =
-            "Please enter your patient code.";
-
-        message.className =
-            "message error";
+        setMessage(
+            message,
+            "Please enter your patient code.",
+            "error"
+        );
 
         return;
     }
 
-    message.textContent =
-        "Loading results...";
-
-    message.className =
-        "message";
 
     try {
+
+        setMessage(
+            message,
+            "Loading patient record...",
+            "info"
+        );
+
 
         const {
             data,
@@ -913,9 +794,11 @@ async function handlePatientLogin(event) {
             }
         );
 
+
         if (error) {
             throw error;
         }
+
 
         /*
          * patient_login() returns:
@@ -942,8 +825,10 @@ async function handlePatientLogin(event) {
             );
         }
 
+
         const patient =
             data.patient;
+
 
         if (!patient.id) {
 
@@ -952,19 +837,15 @@ async function handlePatientLogin(event) {
             );
         }
 
-        /*
-         * Keep the complete patient object.
-         */
-        currentPatientPortalData =
+
+        patientPortalPatient =
             patient;
 
-        /*
-         * Open the patient portal directly.
-         *
-         * DO NOT call showStaffLogin().
-         * DO NOT call the normal staff authentication flow.
-         */
-        displayPatientPortal(
+
+        form.reset();
+
+
+        await renderPatientPortal(
             patient
         );
 
@@ -975,12 +856,13 @@ async function handlePatientLogin(event) {
             error
         );
 
-        message.textContent =
-            error.message ||
-            "Unable to find patient.";
 
-        message.className =
-            "message error";
+        setMessage(
+            message,
+            error.message ||
+            "Unable to find patient.",
+            "error"
+        );
     }
 }
 
@@ -990,11 +872,19 @@ async function handlePatientLogin(event) {
 ================================================================ */
 
 async function renderPatientPortal(patient) {
-const patientId = patient?.id;
 
-if (!patientId) {
-    throw new Error("Invalid patient ID.");
-}
+    const patientId =
+        patient?.id;
+
+
+    if (!patientId) {
+
+        throw new Error(
+            "Invalid patient ID."
+        );
+    }
+
+
     document
         .getElementById("authScreen")
         ?.classList.add("hidden");
@@ -1024,33 +914,28 @@ if (!patientId) {
 
     try {
 
-        const {
-            data: measurements,
-            error
-        } = await db
-            .from("measurements")
-            .select("*")
-            .eq(
-                "patient_id",
-                patient.id
+        /*
+         * The SECURITY DEFINER patient_login()
+         * RPC already provides the patient's
+         * measurements.
+         *
+         * Do not query the measurements table
+         * directly here because patient portal
+         * users may not have direct table access.
+         */
+
+        const measurements =
+            Array.isArray(
+                patient.measurements
             )
-            .order(
-                "created_at",
-                {
-                    ascending: false
-                }
-            );
-
-
-        if (error) {
-            throw error;
-        }
+                ? patient.measurements
+                : [];
 
 
         container.innerHTML =
             renderPatientResults(
                 patient,
-                measurements || []
+                measurements
             );
 
     } catch (error) {
@@ -1067,7 +952,9 @@ if (!patientId) {
 
                 <div class="panel-body">
 
-                    <h2>Unable to load results</h2>
+                    <h2>
+                        Unable to load results
+                    </h2>
 
                     <p>
                         ${escapeHtml(
@@ -1082,185 +969,6 @@ if (!patientId) {
 
         `;
     }
-}
-
-
-function togglePatientMeasurementGraph(measurementId) {
-
-    if (!measurementId) {
-        return;
-    }
-
-    const panel =
-        document.getElementById(
-            `patientMeasurementGraph-${measurementId}`
-        );
-
-    const button =
-        document.getElementById(
-            `patientMeasurementGraphButton-${measurementId}`
-        );
-
-    if (!panel) {
-        return;
-    }
-
-    const isHidden =
-        panel.classList.contains("hidden");
-
-    panel.classList.toggle("hidden", !isHidden);
-
-    if (button) {
-        button.textContent =
-            isHidden
-                ? "Hide frequency-response graph"
-                : "View frequency-response graph";
-    }
-}
-
-
-function renderPatientMeasurementCard(
-    measurement,
-    index
-) {
-
-    const q =
-        measurement.q_factor ??
-        measurement.q;
-
-    const measurementId =
-        String(
-            measurement.id ||
-            `measurement-${index}`
-        );
-
-    const graphId =
-        `patientMeasurementGraph-${measurementId}`;
-
-    const buttonId =
-        `patientMeasurementGraphButton-${measurementId}`;
-
-    return `
-
-        <div
-            class="panel"
-            style="margin-bottom:16px;"
-        >
-
-            <div class="panel-header">
-
-                <div>
-
-                    <div class="section-kicker">
-                        MEASUREMENT ${index + 1}
-                    </div>
-
-                    <h3>
-                        ${formatDate(
-                            measurement.created_at
-                        )}
-                    </h3>
-
-                    <p>
-                        ${escapeHtml(
-                            measurement.bone ||
-                            "Bone not specified"
-                        )}
-                        ·
-                        ${escapeHtml(
-                            measurement.side ||
-                            "Side not specified"
-                        )}
-                    </p>
-
-                </div>
-
-                <span class="badge primary">
-                    Experimental result
-                </span>
-
-            </div>
-
-            <div class="panel-body">
-
-                ${renderMeasurementMetrics(
-                    measurement
-                )}
-
-                <div
-                    style="
-                        display:flex;
-                        justify-content:space-between;
-                        align-items:center;
-                        gap:12px;
-                        margin-top:18px;
-                        padding-top:14px;
-                        border-top:1px solid rgba(128,128,128,.18);
-                    "
-                >
-
-                    <div>
-                        <strong>
-                            Frequency-response graph
-                        </strong>
-                        <div
-                            style="
-                                margin-top:4px;
-                                font-size:13px;
-                                opacity:.72;
-                            "
-                        >
-                            Open this tab to see how the scanner
-                            responded across the measured frequencies.
-                        </div>
-                    </div>
-
-                    <button
-                        id="${buttonId}"
-                        type="button"
-                        class="button secondary"
-                        onclick="togglePatientMeasurementGraph('${escapeHtml(measurementId)}')"
-                    >
-                        View frequency-response graph
-                    </button>
-
-                </div>
-
-                <div
-                    id="${graphId}"
-                    class="hidden"
-                    style="margin-top:16px;"
-                >
-
-                    ${renderFrequencyResponseGraph(
-                        measurement
-                    )}
-
-                </div>
-
-                <div
-                    style="
-                        display:flex;
-                        justify-content:flex-end;
-                        margin-top:14px;
-                    "
-                >
-
-                    <button
-                        type="button"
-                        class="button small danger"
-                        onclick="deleteMeasurement('${escapeHtml(measurement.id || "")}', '${escapeHtml(measurement.patient_id || "")}')"
-                    >
-                        Delete measurement
-                    </button>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    `;
 }
 
 
@@ -1378,7 +1086,6 @@ function renderPatientResults(
 
     return html;
 }
-
 
 
 /* ================================================================
@@ -1512,7 +1219,9 @@ function buildNavigation() {
 
 
             html += `
+
                 </div>
+
             `;
         });
 
@@ -1522,105 +1231,44 @@ function buildNavigation() {
 
 
     navigation
-        .querySelectorAll(".nav-item")
+        .querySelectorAll(
+            ".nav-item"
+        )
         .forEach(button => {
 
             button.addEventListener(
                 "click",
                 () => {
 
-                    navigate(
-                        button.dataset.page
-                    );
+                    const page =
+                        button.dataset.page;
 
-
-                    closeSidebar();
+                    navigate(page);
                 }
             );
         });
-
-
-    updateNavigation();
 }
 
 
-function updateNavigation() {
-
-    document
-        .querySelectorAll(
-            ".nav-item"
-        )
-        .forEach(item => {
-
-            item.classList.toggle(
-                "active",
-                item.dataset.page ===
-                    currentPage
-            );
-        });
-}
-
+/* ================================================================
+   NAVIGATE
+================================================================ */
 
 async function navigate(page) {
+
+    if (!page) {
+        page = "dashboard";
+    }
+
 
     currentPage =
         page;
 
 
-    updateNavigation();
+    closeSidebar();
 
 
-    const titleMap = {
-
-        dashboard:
-            "Dashboard",
-
-        patients:
-            "Patients",
-
-        measurements:
-            "Measurements",
-
-        scanner:
-            "Scanner",
-
-        references:
-            "Reference Groups",
-
-        devices:
-            "Devices",
-
-        operators:
-            "Operators"
-
-    };
-
-
-    document
-        .getElementById("pageTitle")
-        .textContent =
-            titleMap[page] ||
-            "Dashboard";
-
-
-    document
-        .getElementById("pageKicker")
-        .textContent =
-            page === "dashboard"
-                ? "OVERVIEW"
-                : "SCANNER SYSTEM";
-
-
-    const content =
-        document.getElementById(
-            "mainContent"
-        );
-
-
-    content.innerHTML =
-        renderLoading(
-            "Loading..."
-        );
+    updateActiveNavigation();
 
 
     try {
@@ -1630,64 +1278,300 @@ async function navigate(page) {
             case "dashboard":
 
                 await renderDashboard();
+
                 break;
 
 
             case "patients":
 
                 await renderPatients();
+
                 break;
 
 
             case "measurements":
 
-                await renderMeasurements();
+                await openMeasurementManagement();
+
                 break;
 
 
             case "scanner":
 
                 await renderScanner();
+
                 break;
 
 
             case "references":
 
-                await renderReferences();
+                if (isAdmin()) {
+                    await renderReferenceGroups();
+                }
+
                 break;
 
 
             case "devices":
 
-                await renderDevices();
+                if (isAdmin()) {
+                    await renderDevices();
+                }
+
                 break;
 
 
             case "operators":
 
-                await renderOperators();
+                if (isAdmin()) {
+                    await renderOperators();
+                }
+
                 break;
 
 
             default:
 
                 await renderDashboard();
+
+                break;
         }
 
     } catch (error) {
 
         console.error(
-            `Page ${page} error:`,
+            "Navigation error:",
             error
         );
 
 
-        content.innerHTML =
-            renderError(
-                error.message ||
-                "Unable to load this page."
-            );
+        showContent(`
+
+            <div class="panel">
+
+                <div class="panel-body">
+
+                    <h2>
+                        Unable to load page
+                    </h2>
+
+                    <p class="error-text">
+                        ${escapeHtml(
+                            error.message ||
+                            "An unexpected error occurred."
+                        )}
+                    </p>
+
+                </div>
+
+            </div>
+
+        `);
     }
+}
+
+
+/* ================================================================
+   UPDATE ACTIVE NAVIGATION
+================================================================ */
+
+function updateActiveNavigation() {
+
+    document
+        .querySelectorAll(
+            ".nav-item"
+        )
+        .forEach(button => {
+
+            button.classList.toggle(
+                "active",
+                button.dataset.page ===
+                    currentPage
+            );
+        });
+}
+
+
+/* ================================================================
+   SHOW APPLICATION
+================================================================ */
+
+function showApplication() {
+
+    document
+        .getElementById("authScreen")
+        ?.classList.add("hidden");
+
+
+    document
+        .getElementById("patientPortalScreen")
+        ?.classList.add("hidden");
+
+
+    document
+        .getElementById("appScreen")
+        ?.classList.remove("hidden");
+
+
+    buildNavigation();
+
+
+    updateUserHeader();
+
+
+    navigate(
+        currentPage || "dashboard"
+    );
+}
+
+
+/* ================================================================
+   SHOW AUTH SCREEN
+================================================================ */
+
+function showAuthScreen() {
+
+    document
+        .getElementById("authScreen")
+        ?.classList.remove("hidden");
+
+
+    document
+        .getElementById("appScreen")
+        ?.classList.add("hidden");
+
+
+    document
+        .getElementById("patientPortalScreen")
+        ?.classList.add("hidden");
+
+
+    showStaffLogin();
+}
+
+
+/* ================================================================
+   SHOW STAFF LOGIN
+================================================================ */
+
+function showStaffLogin() {
+
+    patientPortalPatient =
+        null;
+
+
+    document
+        .getElementById("patientPortalScreen")
+        ?.classList.add("hidden");
+
+
+    document
+        .getElementById("appScreen")
+        ?.classList.add("hidden");
+
+
+    document
+        .getElementById("authScreen")
+        ?.classList.remove("hidden");
+
+
+    hideAuthViews();
+
+
+    document
+        .getElementById("loginView")
+        ?.classList.remove("hidden");
+}
+
+
+/* ================================================================
+   SHOW PATIENT LOGIN
+================================================================ */
+
+function showPatientLogin() {
+
+    hideAuthViews();
+
+
+    document
+        .getElementById("patientLoginView")
+        ?.classList.remove("hidden");
+
+
+    const input =
+        document.querySelector(
+            '#patientLoginForm input[name="patient_code"], #patientLoginForm #patientCode, #patientLoginCode'
+        );
+
+
+    input?.focus();
+}
+
+
+/* ================================================================
+   SHOW CREATE ACCOUNT
+===============================================================================
+
+function showCreateAccount() {
+
+    hideAuthViews();
+
+
+    document
+        .getElementById("createAccountView")
+        ?.classList.remove("hidden");
+}
+
+
+/* ================================================================
+   HIDE AUTH VIEWS
+================================================================ */
+
+function hideAuthViews() {
+
+    document
+        .querySelectorAll(
+            ".auth-view"
+        )
+        .forEach(view => {
+
+            view.classList.add(
+                "hidden"
+            );
+        });
+}
+
+
+/* ================================================================
+   LOGOUT
+================================================================ */
+
+async function logout() {
+
+    try {
+
+        await db.auth.signOut();
+
+    } catch (error) {
+
+        console.error(
+            "Logout error:",
+            error
+        );
+    }
+
+
+    currentUser = null;
+    currentProfile = null;
+
+
+    showAuthScreen();
+
+
+    toast(
+        "Signed out.",
+        "info"
+    );
 }
 
 
@@ -1703,6 +1587,11 @@ async function renderDashboard() {
         );
 
 
+    if (!content) {
+        return;
+    }
+
+
     const [
         patients,
         measurements,
@@ -1710,16 +1599,24 @@ async function renderDashboard() {
         devices
     ] = await Promise.all([
 
-        countRows("patients"),
+        countRows(
+            "patients"
+        ),
 
-        countRows("measurements"),
+        countRows(
+            "measurements"
+        ),
 
         isAdmin()
-            ? countRows("reference_samples")
+            ? countRows(
+                "reference_samples"
+            )
             : Promise.resolve(null),
 
         isAdmin()
-            ? countRows("devices")
+            ? countRows(
+                "devices"
+            )
             : Promise.resolve(null)
 
     ]);
@@ -1903,7 +1800,10 @@ async function renderPatients() {
     } = await db
         .from("patients")
         .select("*")
-        .is("deleted_at", null)
+        .is(
+            "deleted_at",
+            null
+        )
         .order(
             "created_at",
             {
@@ -1975,9 +1875,11 @@ async function renderPatients() {
                     <p>
                         ${patients.length}
                         active patient
-                        ${patients.length === 1
-                            ? ""
-                            : "s"}
+                        ${
+                            patients.length === 1
+                                ? ""
+                                : "s"
+                        }
                     </p>
 
                 </div>
@@ -1995,11 +1897,11 @@ async function renderPatients() {
                                 <thead>
 
                                     <tr>
-                                        <th>Name</th>
-                                        <th>Patient code</th>
+                                        <th>Patient</th>
+                                        <th>Code</th>
                                         <th>Age</th>
                                         <th>Sex</th>
-                                        <th>Created</th>
+                                        <th>Measurements</th>
                                         <th>Actions</th>
                                     </tr>
 
@@ -2009,7 +1911,10 @@ async function renderPatients() {
 
                                     ${patients
                                         .map(
-                                            renderPatientRow
+                                            patient =>
+                                                renderPatientRow(
+                                                    patient
+                                                )
                                         )
                                         .join("")}
 
@@ -2021,7 +1926,7 @@ async function renderPatients() {
                     `
                     : renderEmpty(
                         "No patients",
-                        "Create a patient record before starting a scanner measurement.",
+                        "No active patient records have been created yet.",
                         "👤"
                     )
             }
@@ -2032,7 +1937,16 @@ async function renderPatients() {
 }
 
 
+/* ================================================================
+   PATIENT ROW
+================================================================ */
+
 function renderPatientRow(patient) {
+
+    const patientName =
+        patient.name ||
+        "Unnamed patient";
+
 
     return `
 
@@ -2041,23 +1955,23 @@ function renderPatientRow(patient) {
             <td>
                 <strong>
                     ${escapeHtml(
-                        patient.name ||
-                        "Unnamed"
+                        patientName
                     )}
                 </strong>
             </td>
 
             <td>
-                <span class="badge neutral">
-                    ${escapeHtml(
-                        patient.patient_code ||
-                        "—"
-                    )}
-                </span>
+                ${escapeHtml(
+                    patient.patient_code ||
+                    "—"
+                )}
             </td>
 
             <td>
-                ${patient.age ?? "—"}
+                ${escapeHtml(
+                    patient.age ??
+                    "—"
+                )}
             </td>
 
             <td>
@@ -2068,32 +1982,37 @@ function renderPatientRow(patient) {
             </td>
 
             <td>
-                ${formatDate(
-                    patient.created_at
-                )}
+                <span
+                    class="badge neutral"
+                    id="measurement-count-${escapeHtml(
+                        patient.id
+                    )}"
+                >
+                    —
+                </span>
             </td>
 
             <td>
 
-                <div class="actions">
-
-                    <button
-                        class="button small secondary"
-                        onclick="viewPatient('${patient.id}')"
-                    >
-                        View
-                    </button>
+                <div class="button-row">
 
                     <button
                         class="button small primary"
-                        onclick="startPatientScan('${patient.id}')"
+                        onclick="openPatientRecord('${escapeJsString(patient.id)}')"
+                    >
+                        Open
+                    </button>
+
+                    <button
+                        class="button small secondary"
+                        onclick="startPatientScan('${escapeJsString(patient.id)}')"
                     >
                         Scan
                     </button>
 
                     <button
                         class="button small danger"
-                        onclick="deletePatient('${patient.id}')"
+                        onclick="deletePatient('${escapeJsString(patient.id)}', '${escapeJsString(patientName)}')"
                     >
                         Delete
                     </button>
@@ -2109,8 +2028,2627 @@ function renderPatientRow(patient) {
 
 
 /* ================================================================
-   PATIENT FORM
+   OPEN PATIENT RECORD
 ================================================================ */
+
+async function openPatientRecord(
+    patientId,
+    openScanner = false
+) {
+
+    if (!patientId) {
+        return;
+    }
+
+
+    selectedPatientId =
+        patientId;
+
+
+    try {
+
+        const {
+            data: patient,
+            error
+        } = await db
+            .from("patients")
+            .select("*")
+            .eq(
+                "id",
+                patientId
+            )
+            .maybeSingle();
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        if (!patient) {
+
+            throw new Error(
+                "Patient record not found."
+            );
+        }
+
+
+        await renderPatientRecord(
+            patient,
+            {
+                openScanner
+            }
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Patient record error:",
+            error
+        );
+
+
+        toast(
+            error.message ||
+            "Unable to open patient record.",
+            "error"
+        );
+    }
+}
+
+
+/* ================================================================
+   START PATIENT SCAN
+================================================================ */
+
+async function startPatientScan(
+    patientId
+) {
+
+    selectedPatientId =
+        patientId;
+
+
+    await openPatientRecord(
+        patientId,
+        true
+    );
+}
+
+
+/* ================================================================
+   PATIENT RECORD
+================================================================ */
+
+async function renderPatientRecord(
+    patient,
+    options = {}
+) {
+
+    const content =
+        document.getElementById(
+            "mainContent"
+        );
+
+
+    if (!content) {
+        return;
+    }
+
+
+    selectedPatientId =
+        patient.id;
+
+
+    const {
+        data: measurements,
+        error: measurementError
+    } = await db
+        .from("measurements")
+        .select("*")
+        .eq(
+            "patient_id",
+            patient.id
+        )
+        .order(
+            "created_at",
+            {
+                ascending: false
+            }
+        );
+
+
+    if (measurementError) {
+        throw measurementError;
+    }
+
+
+    const savedSelection =
+        getPatientScanSelection(
+            patient.id
+        );
+
+
+    content.innerHTML = `
+
+        <div class="page-header">
+
+            <div>
+
+                <div class="section-kicker">
+                    PATIENT RECORD
+                </div>
+
+                <h2>
+                    ${escapeHtml(
+                        patient.name ||
+                        "Patient"
+                    )}
+                </h2>
+
+                <p>
+                    Patient code:
+                    <strong>
+                        ${escapeHtml(
+                            patient.patient_code ||
+                            "—"
+                        )}
+                    </strong>
+                </p>
+
+            </div>
+
+            <div class="actions">
+
+                <button
+                    class="button secondary"
+                    onclick="navigate('patients')"
+                >
+                    ← Back to Patients
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <section class="panel">
+
+            <div class="panel-header">
+
+                <div>
+
+                    <h3>
+                        Patient information
+                    </h3>
+
+                    <p>
+                        Current demographic information.
+                    </p>
+
+                </div>
+
+            </div>
+
+            <div class="panel-body">
+
+                <div class="stats-grid">
+
+                    ${scannerInfoCard(
+                        "Age",
+                        patient.age ?? "—",
+                        "Years"
+                    )}
+
+                    ${scannerInfoCard(
+                        "Sex",
+                        patient.sex || "—",
+                        "Recorded sex"
+                    )}
+
+                    ${scannerInfoCard(
+                        "Height",
+                        patient.height != null
+                            ? `${patient.height} cm`
+                            : "—",
+                        "Height"
+                    )}
+
+                    ${scannerInfoCard(
+                        "Weight",
+                        patient.weight != null
+                            ? `${patient.weight} kg`
+                            : "—",
+                        "Weight"
+                    )}
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <section
+            class="panel"
+            id="patientScannerPanel"
+        >
+
+            <div class="panel-header">
+
+                <div>
+
+                    <h3>
+                        Patient Scanner
+                    </h3>
+
+                    <p>
+                        Start an acoustic measurement for
+                        this patient.
+                    </p>
+
+                </div>
+
+                <span
+                    class="badge primary"
+                    id="patientScannerStatus"
+                >
+                    Ready
+                </span>
+
+            </div>
+
+            <div class="panel-body">
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+
+                        <label for="patientScanBone">
+                            Bone
+                        </label>
+
+                        <select
+                            id="patientScanBone"
+                            onchange="savePatientScanSelection('${escapeJsString(patient.id)}')"
+                        >
+
+                            <option
+                                value="radius"
+                                ${
+                                    savedSelection.bone ===
+                                    "radius"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Radius
+                            </option>
+
+                            <option
+                                value="ulna"
+                                ${
+                                    savedSelection.bone ===
+                                    "ulna"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Ulna
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    <div class="form-group">
+
+                        <label for="patientScanSide">
+                            Side
+                        </label>
+
+                        <select
+                            id="patientScanSide"
+                            onchange="savePatientScanSelection('${escapeJsString(patient.id)}')"
+                        >
+
+                            <option
+                                value="left"
+                                ${
+                                    savedSelection.side ===
+                                    "left"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Left
+                            </option>
+
+                            <option
+                                value="right"
+                                ${
+                                    savedSelection.side ===
+                                    "right"
+                                        ? "selected"
+                                        : ""
+                                }
+                            >
+                                Right
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+
+                <div class="button-row">
+
+                    <button
+                        class="button primary"
+                        type="button"
+                        onclick="submitPatientScanRequest('${escapeJsString(patient.id)}')"
+                    >
+                        Start Scan
+                    </button>
+
+                    <button
+                        class="button secondary"
+                        type="button"
+                        onclick="navigate('scanner')"
+                    >
+                        Open Scanner
+                    </button>
+
+                </div>
+
+
+                <div
+                    id="patientScanRequestStatus"
+                    class="scan-request-status"
+                ></div>
+
+            </div>
+
+        </section>
+
+
+        <section class="panel">
+
+            <div class="panel-header">
+
+                <div>
+
+                    <h3>
+                        Previous Measurements
+                    </h3>
+
+                    <p>
+                        ${measurements.length}
+                        recorded measurement
+                        ${
+                            measurements.length === 1
+                                ? ""
+                                : "s"
+                        }
+                        for this patient.
+                    </p>
+
+                </div>
+
+            </div>
+
+            ${
+                measurements.length
+                    ? `
+
+                        <div class="table-wrap">
+
+                            <table>
+
+                                <thead>
+
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Bone</th>
+                                        <th>Side</th>
+                                        <th>f0</th>
+                                        <th>RMS</th>
+                                        <th>Bandwidth</th>
+                                        <th>Q</th>
+                                        <th>Action</th>
+                                    </tr>
+
+                                </thead>
+
+                                <tbody>
+
+                                    ${measurements
+                                        .map(
+                                            measurement =>
+                                                renderPatientMeasurementRow(
+                                                    measurement
+                                                )
+                                        )
+                                        .join("")}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    `
+                    : `
+
+                        <div class="empty-state">
+
+                            <div class="empty-state-icon">
+                                📊
+                            </div>
+
+                            <h3>
+                                No measurements yet
+                            </h3>
+
+                            <p>
+                                Start a scan above to record
+                                the first measurement for this
+                                patient.
+                            </p>
+
+                        </div>
+
+                    `
+            }
+
+        </section>
+
+
+        <div class="research-note">
+
+            <strong>
+                Experimental use
+            </strong>
+
+            <p>
+                Acoustic measurements shown here are
+                experimental research data and are not a
+                clinical diagnosis or a direct clinical
+                bone mineral density measurement.
+            </p>
+
+        </div>
+
+    `;
+
+
+    if (options.openScanner) {
+
+        setTimeout(
+            () => {
+
+                document
+                    .getElementById(
+                        "patientScannerPanel"
+                    )
+                    ?.scrollIntoView({
+                        behavior: "smooth",
+                        block: "start"
+                    });
+
+            },
+            50
+        );
+    }
+}
+
+
+/* ================================================================
+   PATIENT SCAN SELECTION
+================================================================ */
+
+function getPatientScanSelection(
+    patientId
+) {
+
+    const defaultSelection = {
+
+        bone: "radius",
+
+        side: "left"
+
+    };
+
+
+    if (!patientId) {
+        return defaultSelection;
+    }
+
+
+    try {
+
+        const stored =
+            localStorage.getItem(
+                `abs_scan_selection_${patientId}`
+            );
+
+
+        if (!stored) {
+            return defaultSelection;
+        }
+
+
+        const parsed =
+            JSON.parse(stored);
+
+
+        return {
+
+            bone:
+                parsed?.bone === "ulna"
+                    ? "ulna"
+                    : "radius",
+
+            side:
+                parsed?.side === "right"
+                    ? "right"
+                    : "left"
+
+        };
+
+    } catch (error) {
+
+        console.warn(
+            "Unable to restore patient scan selection:",
+            error
+        );
+
+
+        return defaultSelection;
+    }
+}
+
+
+function savePatientScanSelection(
+    patientId
+) {
+
+    if (!patientId) {
+        return;
+    }
+
+
+    const bone =
+        document.getElementById(
+            "patientScanBone"
+        )?.value ||
+        "radius";
+
+
+    const side =
+        document.getElementById(
+            "patientScanSide"
+        )?.value ||
+        "left";
+
+
+    try {
+
+        localStorage.setItem(
+
+            `abs_scan_selection_${patientId}`,
+
+            JSON.stringify({
+
+                bone,
+                side
+
+            })
+
+        );
+
+    } catch (error) {
+
+        console.warn(
+            "Unable to save patient scan selection:",
+            error
+        );
+    }
+}
+
+
+/* ================================================================
+   SUBMIT PATIENT SCAN REQUEST
+================================================================ */
+
+async function submitPatientScanRequest(
+    patientId
+) {
+
+    if (!patientId) {
+
+        toast(
+            "Patient ID is missing.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    savePatientScanSelection(
+        patientId
+    );
+
+
+    const bone =
+        document.getElementById(
+            "patientScanBone"
+        )?.value ||
+        "radius";
+
+
+    const side =
+        document.getElementById(
+            "patientScanSide"
+        )?.value ||
+        "left";
+
+
+    const status =
+        document.getElementById(
+            "patientScanRequestStatus"
+        );
+
+
+    try {
+
+        if (status) {
+
+            status.innerHTML = `
+                <div class="info-message">
+                    Checking scanner status...
+                </div>
+            `;
+        }
+
+
+        const device =
+            await getScannerDevice();
+
+
+        if (!device) {
+
+            throw new Error(
+                "Scanner ABS-001 could not be found."
+            );
+        }
+
+
+        const online =
+            isScannerOnline(
+                device
+            );
+
+
+        if (!online) {
+
+            if (status) {
+
+                status.innerHTML = `
+
+                    <div class="error-message">
+
+                        <strong>
+                            Scanner offline
+                        </strong>
+
+                        <br>
+
+                        ABS-001 is not currently connected.
+                        Turn on the scanner and connect it
+                        to Wi-Fi, then try again.
+
+                    </div>
+
+                `;
+            }
+
+
+            toast(
+                "ABS-001 is offline. Turn on the scanner and connect it to Wi-Fi before starting a scan.",
+                "error"
+            );
+
+
+            return;
+        }
+
+
+        if (status) {
+
+            status.innerHTML = `
+                <div class="info-message">
+                    Sending scan request to ABS-001...
+                </div>
+            `;
+        }
+
+
+        const {
+            data,
+            error
+        } = await db
+            .from("scan_requests")
+            .insert({
+
+                patient_id:
+                    patientId,
+
+                operator_id:
+                    currentUser?.id ||
+                    null,
+
+                device_id:
+                    device.id,
+
+                status:
+                    "pending",
+
+                bone:
+                    bone,
+
+                side:
+                    side
+
+            })
+            .select()
+            .single();
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        if (!data) {
+
+            throw new Error(
+                "Scan request was not created."
+            );
+        }
+
+
+        if (status) {
+
+            status.innerHTML = `
+
+                <div class="success-message">
+
+                    <strong>
+                        Scan request sent.
+                    </strong>
+
+                    <br>
+
+                    Patient:
+                    ${escapeHtml(
+                        patientId
+                    )}
+
+                    <br>
+
+                    ${escapeHtml(
+                        capitalize(bone)
+                    )}
+                    /
+                    ${escapeHtml(
+                        capitalize(side)
+                    )}
+
+                    <br>
+
+                    Waiting for ABS-001...
+
+                </div>
+
+            `;
+        }
+
+
+        toast(
+            "Scan request sent to ABS-001.",
+            "success"
+        );
+
+
+        startPatientScanPolling(
+            patientId,
+            data.id
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Patient scan request error:",
+            error
+        );
+
+
+        if (status) {
+
+            status.innerHTML = `
+
+                <div class="error-message">
+
+                    ${escapeHtml(
+                        error.message ||
+                        "Unable to start scan."
+                    )}
+
+                </div>
+
+            `;
+        }
+
+
+        toast(
+            error.message ||
+            "Unable to start scan.",
+            "error"
+        );
+    }
+}
+
+
+/* ================================================================
+   PATIENT SCAN POLLING
+================================================================ */
+function startPatientScanPolling(
+    patientId,
+    requestId
+) {
+
+    if (!patientId || !requestId) {
+        return;
+    }
+
+    if (scanPollTimer) {
+        clearTimeout(scanPollTimer);
+        scanPollTimer = null;
+    }
+
+    let attempts = 0;
+    const intervalMs = 3000;
+    const maxAttempts = 300; // 15 minutes
+
+    const poll = async () => {
+
+        attempts++;
+
+        try {
+
+            const {
+                data,
+                error
+            } = await db
+                .from("scan_requests")
+                .select("id,status,error_message")
+                .eq(
+                    "id",
+                    requestId
+                )
+                .maybeSingle();
+
+            if (error) {
+                throw error;
+            }
+
+            const status =
+                document.getElementById(
+                    "patientScanRequestStatus"
+                );
+
+            if (!data) {
+
+                if (attempts < maxAttempts) {
+                    scanPollTimer =
+                        setTimeout(
+                            poll,
+                            intervalMs
+                        );
+                }
+
+                return;
+            }
+
+            if (
+                data.status ===
+                "completed"
+            ) {
+
+                scanPollTimer = null;
+
+                if (status) {
+                    status.innerHTML = `
+                        <div class="success-message">
+                            <strong>Scan completed.</strong>
+                            <br>
+                            Loading updated patient measurements...
+                        </div>
+                    `;
+                }
+
+                await openPatientRecord(
+                    patientId,
+                    false
+                );
+
+                toast(
+                    "Patient scan completed.",
+                    "success"
+                );
+
+                return;
+            }
+
+            if (
+                data.status === "failed" ||
+                data.status === "cancelled"
+            ) {
+
+                scanPollTimer = null;
+
+                if (status) {
+                    status.innerHTML = `
+                        <div class="error-message">
+                            Scan request:
+                            ${escapeHtml(
+                                data.status
+                            )}
+                            ${
+                                data.error_message
+                                    ? `<br>${escapeHtml(
+                                        data.error_message
+                                    )}`
+                                    : ""
+                            }
+                        </div>
+                    `;
+                }
+
+                return;
+            }
+
+            if (status) {
+                status.innerHTML = `
+                    <div class="info-message">
+                        Scanner status:
+                        <strong>
+                            ${escapeHtml(
+                                data.status ||
+                                "pending"
+                            )}
+                        </strong>
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+
+            console.error(
+                "Patient scan polling error:",
+                error
+            );
+
+        }
+
+        if (attempts >= maxAttempts) {
+
+            scanPollTimer = null;
+
+            const status =
+                document.getElementById(
+                    "patientScanRequestStatus"
+                );
+
+            if (status) {
+                status.innerHTML = `
+                    <div class="warning-message">
+                        The scan is still processing.
+                        You can remain on this patient record
+                        and refresh later to see the result.
+                    </div>
+                `;
+            }
+
+            return;
+        }
+
+        scanPollTimer =
+            setTimeout(
+                poll,
+                intervalMs
+            );
+    };
+
+    poll();
+}
+
+
+/* ================================================================
+   DELETE PATIENT
+================================================================ */
+
+async function deletePatient(
+    patientId,
+    patientName
+) {
+
+    if (!patientId) {
+
+        toast(
+            "Patient ID is missing.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (
+        !confirm(
+            `Delete patient "${patientName || "this patient"}"?\n\nThe patient will be removed from the active patient list.`
+        )
+    ) {
+
+        return;
+    }
+
+
+    try {
+
+        const {
+            data,
+            error
+        } = await db.rpc(
+            "delete_patient",
+            {
+                p_patient_id:
+                    patientId
+            }
+        );
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        if (
+            data &&
+            data.success === false
+        ) {
+
+            throw new Error(
+                data.message ||
+                "Patient could not be deleted."
+            );
+        }
+
+
+        if (
+            selectedPatientId ===
+            patientId
+        ) {
+
+            selectedPatientId =
+                null;
+        }
+
+
+        toast(
+            "Patient deleted.",
+            "success"
+        );
+
+
+        await renderPatients();
+
+    } catch (error) {
+
+        console.error(
+            "Delete patient error:",
+            error
+        );
+
+
+        toast(
+            error.message ||
+            "Unable to delete patient.",
+            "error"
+        );
+    }
+}
+
+
+/* ================================================================
+   DELETE INDIVIDUAL MEASUREMENT
+================================================================ */
+
+async function deleteMeasurement(
+    measurementId,
+    patientId
+) {
+
+    if (!measurementId) {
+
+        toast(
+            "Measurement ID is missing.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (
+        !confirm(
+            "Delete this measurement?\n\nThis action cannot be undone."
+        )
+    ) {
+
+        return;
+    }
+
+
+    try {
+
+        const {
+            error
+        } = await db
+            .from("measurements")
+            .delete()
+            .eq(
+                "id",
+                measurementId
+            );
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        toast(
+            "Measurement deleted.",
+            "success"
+        );
+
+
+        if (patientId) {
+
+            await openPatientRecord(
+                patientId,
+                false
+            );
+
+        } else {
+
+            await openMeasurementManagement();
+
+        }
+
+    } catch (error) {
+
+        console.error(
+            "Delete measurement error:",
+            error
+        );
+
+
+        toast(
+            error.message ||
+            "Unable to delete measurement.",
+            "error"
+        );
+    }
+}
+
+
+/* ================================================================
+   PATIENT MEASUREMENT ROW
+================================================================ */
+
+function renderPatientMeasurementRow(
+    measurement
+) {
+
+    const qValue =
+        measurement.q_factor;
+
+
+    return `
+
+        <tr>
+
+            <td>
+                ${formatDate(
+                    measurement.created_at
+                )}
+            </td>
+
+            <td>
+                ${escapeHtml(
+                    measurement.profile_bone ||
+                    measurement.bone ||
+                    "—"
+                )}
+            </td>
+
+            <td>
+                ${escapeHtml(
+                    measurement.profile_side ||
+                    measurement.side ||
+                    "—"
+                )}
+            </td>
+
+            <td>
+                ${formatMetric(
+                    measurement.f0,
+                    "Hz"
+                )}
+            </td>
+
+            <td>
+                ${formatMetric(
+                    measurement.rms,
+                    ""
+                )}
+            </td>
+
+            <td>
+                ${formatMetric(
+                    measurement.bandwidth,
+                    "Hz"
+                )}
+            </td>
+
+            <td>
+                ${
+                    qValue == null ||
+                    qValue === "" ||
+                    Number.isNaN(
+                        Number(qValue)
+                    )
+                        ? "—"
+                        : Number(qValue).toFixed(3)
+                }
+            </td>
+
+            <td>
+
+                <button
+                    class="button small danger"
+                    type="button"
+                    onclick="deleteMeasurement(
+                        '${escapeJsString(measurement.id)}',
+                        '${escapeJsString(measurement.patient_id || "")}'
+                    )"
+                >
+                    Delete
+                </button>
+
+            </td>
+
+        </tr>
+
+    `;
+}
+
+
+/* ================================================================
+   MEASUREMENT ROW
+================================================================ */
+
+function renderMeasurementRow(
+    measurement
+) {
+
+    return `
+
+        <tr>
+
+            <td>
+                ${formatDate(
+                    measurement.created_at
+                )}
+            </td>
+
+            <td>
+                ${formatMetric(
+                    measurement.f0,
+                    "Hz"
+                )}
+            </td>
+
+            <td>
+                ${formatMetric(
+                    measurement.rms,
+                    ""
+                )}
+            </td>
+
+            <td>
+                ${formatMetric(
+                    measurement.bandwidth,
+                    "Hz"
+                )}
+            </td>
+
+            <td>
+                ${
+                    measurement.q_factor == null
+                        ? "—"
+                        : Number(
+                            measurement.q_factor
+                        ).toFixed(3)
+                }
+            </td>
+
+        </tr>
+
+    `;
+}
+
+
+/* ================================================================
+   MEASUREMENT MANAGEMENT
+================================================================ */
+
+async function openMeasurementManagement() {
+
+    if (!isStaff()) {
+        return;
+    }
+
+
+    try {
+
+        const {
+            data: measurements,
+            error
+        } = await db
+            .from("measurements")
+            .select("*")
+            .order(
+                "created_at",
+                {
+                    ascending: false
+                }
+            )
+            .limit(200);
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        let html = `
+
+            <div class="content-header">
+
+                <div>
+
+                    <h2>
+                        Measurements
+                    </h2>
+
+                    <p>
+                        Scanner measurement results.
+                    </p>
+
+                </div>
+
+            </div>
+
+        `;
+
+
+        if (
+            !measurements ||
+            measurements.length === 0
+        ) {
+
+            html += `
+
+                <p>
+                    No measurements available.
+                </p>
+
+            `;
+
+        } else {
+
+            html += `
+
+                <div class="table-container">
+
+                    <table>
+
+                        <thead>
+
+                            <tr>
+
+                                <th>
+                                    Date
+                                </th>
+
+                                <th>
+                                    Patient ID
+                                </th>
+
+                                <th>
+                                    Bone
+                                </th>
+
+                                <th>
+                                    Side
+                                </th>
+
+                                <th>
+                                    Device
+                                </th>
+
+                                <th>
+                                    f0
+                                </th>
+
+                                <th>
+                                    RMS
+                                </th>
+
+                                <th>
+                                    BW
+                                </th>
+
+                                <th>
+                                    Q
+                                </th>
+
+                                <th>
+                                    Action
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+            `;
+
+
+            measurements.forEach(
+                measurement => {
+
+                    html += `
+
+                        <tr>
+
+                            <td>
+                                ${formatDate(
+                                    measurement.created_at
+                                )}
+                            </td>
+
+                            <td>
+                                ${escapeHtml(
+                                    measurement.patient_id ||
+                                    "—"
+                                )}
+                            </td>
+
+                            <td>
+                                ${escapeHtml(
+                                    measurement.profile_bone ||
+                                    measurement.bone ||
+                                    "—"
+                                )}
+                            </td>
+
+                            <td>
+                                ${escapeHtml(
+                                    measurement.profile_side ||
+                                    measurement.side ||
+                                    "—"
+                                )}
+                            </td>
+
+                            <td>
+                                ${escapeHtml(
+                                    measurement.device_code ||
+                                    "—"
+                                )}
+                            </td>
+
+                            <td>
+                                ${formatMetric(
+                                    measurement.f0,
+                                    "Hz"
+                                )}
+                            </td>
+
+                            <td>
+                                ${formatMetric(
+                                    measurement.rms,
+                                    ""
+                                )}
+                            </td>
+
+                            <td>
+                                ${formatMetric(
+                                    measurement.bandwidth,
+                                    "Hz"
+                                )}
+                            </td>
+
+                            <td>
+                                ${
+                                    measurement.q_factor == null
+                                        ? "—"
+                                        : Number(
+                                            measurement.q_factor
+                                        ).toFixed(3)
+                                }
+                            </td>
+
+                            <td>
+
+                                <button
+                                    class="button small danger"
+                                    type="button"
+                                    onclick="deleteMeasurement(
+                                        '${escapeJsString(measurement.id)}',
+                                        '${escapeJsString(measurement.patient_id || "")}'
+                                    )"
+                                >
+                                    Delete
+                                </button>
+
+                            </td>
+
+                        </tr>
+
+                    `;
+                }
+            );
+
+
+            html += `
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            `;
+        }
+
+
+        showContent(
+            html
+        );
+
+
+    } catch (error) {
+
+        console.error(
+            "Measurement management error:",
+            error
+        );
+
+
+        showContent(`
+
+            <h2>
+                Measurements
+            </h2>
+
+            <p class="error-text">
+                ${escapeHtml(
+                    error.message ||
+                    "Unable to load measurements."
+                )}
+            </p>
+
+        `);
+    }
+}
+
+
+/* ================================================================
+   DEVICE HELPER
+================================================================ */
+
+async function getScannerDevice() {
+
+    const {
+        data,
+        error
+    } = await db
+        .from("devices")
+        .select("*")
+        .eq(
+            "device_code",
+            "ABS-001"
+        )
+        .maybeSingle();
+
+
+    if (error) {
+
+        console.error(
+            "Device lookup error:",
+            error
+        );
+
+        return null;
+    }
+
+
+    if (!data) {
+        return null;
+    }
+
+
+    return data;
+}
+
+
+/* ================================================================
+   LIVE SCANNER STATUS
+================================================================ */
+
+function isScannerOnline(
+    device
+) {
+
+    if (
+        !device?.last_seen
+    ) {
+
+        return false;
+    }
+
+
+    const lastSeen =
+        new Date(
+            device.last_seen
+        ).getTime();
+
+
+    if (
+        !Number.isFinite(
+            lastSeen
+        )
+    ) {
+
+        return false;
+    }
+
+
+    const age =
+        Date.now() -
+        lastSeen;
+
+
+    /*
+     * Allow a small clock difference between
+     * the browser and Supabase server.
+     *
+     * A negative age means the server timestamp
+     * is slightly ahead of the browser clock.
+     */
+
+    return age <= 45000;
+}
+
+
+/* ================================================================
+   AUTHORIZATION
+================================================================ */
+
+function isAdmin() {
+
+    return (
+        currentProfile?.role ===
+        "admin"
+    );
+}
+
+
+function isStaff() {
+
+    return (
+        currentProfile?.role ===
+            "admin" ||
+        currentProfile?.role ===
+            "operator"
+    );
+}
+
+
+/* ================================================================
+   USER HEADER
+================================================================ */
+
+function updateUserHeader() {
+
+    const name =
+        currentProfile?.name ||
+        currentUser?.email ||
+        "User";
+
+
+    const role =
+        currentProfile?.role ||
+        "operator";
+
+
+    const nameElement =
+        document.getElementById(
+            "currentUserName"
+        );
+
+
+    if (nameElement) {
+
+        nameElement.textContent =
+            name;
+    }
+
+
+    const roleElement =
+        document.getElementById(
+            "currentUserRole"
+        );
+
+
+    if (roleElement) {
+
+        roleElement.textContent =
+            capitalize(
+                role
+            );
+    }
+}
+
+
+/* ================================================================
+   SCANNER
+================================================================ */
+
+async function renderScanner() {
+
+    if (!isStaff()) {
+        return;
+    }
+
+
+    const content =
+        document.getElementById(
+            "mainContent"
+        );
+
+
+    content.innerHTML =
+        renderLoading(
+            "Loading scanner..."
+        );
+
+
+    try {
+
+        const device =
+            await getScannerDevice();
+
+
+        const online =
+            isScannerOnline(
+                device
+            );
+
+
+        content.innerHTML = `
+
+            <div class="page-header">
+
+                <div>
+
+                    <div class="section-kicker">
+                        ACOUSTIC SCANNER
+                    </div>
+
+                    <h2>
+                        Scanner
+                    </h2>
+
+                    <p>
+                        Manage the ABS-001 scanner and
+                        patient scan requests.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <section class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Scanner status
+                        </h3>
+
+                        <p>
+                            Live status based on the latest
+                            device heartbeat.
+                        </p>
+
+                    </div>
+
+                    <span
+                        class="badge ${
+                            online
+                                ? "success"
+                                : "danger"
+                        }"
+                    >
+                        ${
+                            online
+                                ? "Online"
+                                : "Offline"
+                        }
+                    </span>
+
+                </div>
+
+                <div class="panel-body">
+
+                    <div class="scanner-status">
+
+                        ${scannerInfoCard(
+                            "Device",
+                            device?.device_code ||
+                            "ABS-001",
+                            "Scanner ID"
+                        )}
+
+                        ${scannerInfoCard(
+                            "Status",
+                            online
+                                ? "Online"
+                                : "Offline",
+                            "Live heartbeat"
+                        )}
+
+                        ${scannerInfoCard(
+                            "Last seen",
+                            device?.last_seen
+                                ? formatDate(
+                                    device.last_seen
+                                )
+                                : "Never",
+                            "Latest heartbeat"
+                        )}
+
+                        ${scannerInfoCard(
+                            "Firmware",
+                            device?.firmware_version ||
+                            "—",
+                            "Reported firmware"
+                        )}
+
+                    </div>
+
+                </div>
+
+            </section>
+
+
+            <section class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Scan requests
+                        </h3>
+
+                        <p>
+                            Requests sent to the scanner
+                            from patient records.
+                        </p>
+
+                    </div>
+
+                </div>
+
+                <div
+                    id="scannerRequestList"
+                    class="panel-body"
+                >
+
+                    Loading requests...
+
+                </div>
+
+            </section>
+
+        `;
+
+
+        await renderScannerRequests();
+
+    } catch (error) {
+
+        console.error(
+            "Scanner render error:",
+            error
+        );
+
+
+        content.innerHTML = `
+
+            <div class="panel">
+
+                <div class="panel-body">
+
+                    <h2>
+                        Scanner
+                    </h2>
+
+                    <p class="error-text">
+                        ${escapeHtml(
+                            error.message ||
+                            "Unable to load scanner."
+                        )}
+                    </p>
+
+                </div>
+
+            </div>
+
+        `;
+    }
+}
+
+
+/* ================================================================
+   SCANNER REQUESTS
+================================================================ */
+
+async function renderScannerRequests() {
+
+    const container =
+        document.getElementById(
+            "scannerRequestList"
+        );
+
+
+    if (!container) {
+        return;
+    }
+
+
+    const {
+        data,
+        error
+    } = await db
+        .from("scan_requests")
+        .select("*")
+        .order(
+            "created_at",
+            {
+                ascending: false
+            }
+        )
+        .limit(50);
+
+
+    if (error) {
+
+        container.innerHTML = `
+
+            <p class="error-text">
+                ${escapeHtml(
+                    error.message ||
+                    "Unable to load scan requests."
+                )}
+            </p>
+
+        `;
+
+        return;
+    }
+
+
+    if (
+        !data ||
+        data.length === 0
+    ) {
+
+        container.innerHTML = `
+
+            <div class="empty-state">
+
+                <div class="empty-state-icon">
+                    📡
+                </div>
+
+                <h3>
+                    No scan requests
+                </h3>
+
+                <p>
+                    Scan requests created from patient
+                    records will appear here.
+                </p>
+
+            </div>
+
+        `;
+
+        return;
+    }
+
+
+    container.innerHTML = `
+
+        <div class="table-wrap">
+
+            <table>
+
+                <thead>
+
+                    <tr>
+
+                        <th>
+                            Created
+                        </th>
+
+                        <th>
+                            Patient
+                        </th>
+
+                        <th>
+                            Bone
+                        </th>
+
+                        <th>
+                            Side
+                        </th>
+
+                        <th>
+                            Status
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    ${
+                        data
+                            .map(
+                                request =>
+                                    `
+
+                                        <tr>
+
+                                            <td>
+                                                ${formatDate(
+                                                    request.created_at
+                                                )}
+                                            </td>
+
+                                            <td>
+                                                ${escapeHtml(
+                                                    request.patient_id ||
+                                                    "—"
+                                                )}
+                                            </td>
+
+                                            <td>
+                                                ${escapeHtml(
+                                                    request.bone ||
+                                                    "—"
+                                                )}
+                                            </td>
+
+                                            <td>
+                                                ${escapeHtml(
+                                                    request.side ||
+                                                    "—"
+                                                )}
+                                            </td>
+
+                                            <td>
+                                                <span
+                                                    class="badge ${
+                                                        request.status ===
+                                                        "completed"
+                                                            ? "success"
+                                                            : request.status ===
+                                                                "failed"
+                                                                ? "danger"
+                                                                : "neutral"
+                                                    }"
+                                                >
+                                                    ${escapeHtml(
+                                                        request.status ||
+                                                        "pending"
+                                                    )}
+                                                </span>
+                                            </td>
+
+                                        </tr>
+
+                                    `
+                            )
+                            .join("")
+                    }
+
+                </tbody>
+
+            </table>
+
+        </div>
+
+    `;
+}
+
+
+/* ================================================================
+   REFERENCE GROUPS
+================================================================ */
+
+async function renderReferenceGroups() {
+
+    if (!isAdmin()) {
+        return;
+    }
+
+
+    const content =
+        document.getElementById(
+            "mainContent"
+        );
+
+
+    content.innerHTML =
+        renderLoading(
+            "Loading reference groups..."
+        );
+
+
+    try {
+
+        const {
+            data,
+            error
+        } = await db
+            .from("reference_groups")
+            .select("*")
+            .order(
+                "age_min",
+                {
+                    ascending: true
+                }
+            );
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        referenceGroupsCache =
+            data || [];
+
+
+        content.innerHTML = `
+
+            <div class="page-header">
+
+                <div>
+
+                    <div class="section-kicker">
+                        REFERENCE DATABASE
+                    </div>
+
+                    <h2>
+                        Reference Groups
+                    </h2>
+
+                    <p>
+                        Manage demographic and anatomical
+                        reference groups used by the scanner.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <section class="panel">
+
+                <div class="panel-header">
+
+                    <div>
+
+                        <h3>
+                            Reference groups
+                        </h3>
+
+                        <p>
+                            ${
+                                referenceGroupsCache.length
+                            }
+                            configured group
+                            ${
+                                referenceGroupsCache.length === 1
+                                    ? ""
+                                    : "s"
+                            }
+                        </p>
+
+                    </div>
+
+                    <button
+                        class="button primary"
+                        type="button"
+                        onclick="openReferenceGroupForm()"
+                    >
+                        + Add Group
+                    </button>
+
+                </div>
+
+
+                ${
+                    referenceGroupsCache.length
+                        ? `
+
+                            <div class="table-wrap">
+
+                                <table>
+
+                                    <thead>
+
+                                        <tr>
+
+                                            <th>
+                                                Name
+                                            </th>
+
+                                            <th>
+                                                Age
+                                            </th>
+
+                                            <th>
+                                                Sex
+                                            </th>
+
+                                            <th>
+                                                Bone
+                                            </th>
+
+                                            <th>
+                                                Side
+                                            </th>
+
+                                            <th>
+                                                Version
+                                            </th>
+
+                                        </tr>
+
+                                    </thead>
+
+                                    <tbody>
+
+                                        ${
+                                            referenceGroupsCache
+                                                .map(
+                                                    group =>
+                                                        `
+
+                                                            <tr>
+
+                                                                <td>
+                                                                    ${escapeHtml(
+                                                                        group.name ||
+                                                                        "—"
+                                                                    )}
+                                                                </td>
+
+                                                                <td>
+                                                                    ${escapeHtml(
+                                                                        `${group.age_min ?? "—"}–${group.age_max ?? "—"}`
+                                                                    )}
+                                                                </td>
+
+                                                                <td>
+                                                                    ${escapeHtml(
+                                                                        group.sex ||
+                                                                        "—"
+                                                                    )}
+                                                                </td>
+
+                                                                <td>
+                                                                    ${escapeHtml(
+                                                                        group.bone ||
+                                                                        "—"
+                                                                    )}
+                                                                </td>
+
+                                                                <td>
+                                                                    ${escapeHtml(
+                                                                        group.side ||
+                                                                        "—"
+                                                                    )}
+                                                                </td>
+
+                                                                <td>
+                                                                    ${escapeHtml(
+                                                                        group.version ||
+                                                                        "—"
+                                                                    )}
+                                                                </td>
+
+                                                            </tr>
+
+                                                        `
+                                                )
+                                                .join("")
+                                        }
+
+                                    </tbody>
+
+                                </table>
+
+                            </div>
+
+                        `
+                        : renderEmpty(
+                            "No reference groups",
+                            "Create a reference group before adding reference samples.",
+                            "🧪"
+                        )
+                }
+
+            </section>
+
+        `;
+
+    } catch (error) {
+
+        console.error(
+            "Reference groups error:",
+            error
+        );
+
+
+        content.innerHTML = `
+
+            <div class="panel">
+
+                <div class="panel-body">
+
+                    <h2>
+                        Reference Groups
+                    </h2>
+
+                    <p class="error-text">
+                        ${escapeHtml(
+                            error.message ||
+                            "Unable to load reference groups."
+                        )}
+                    </p>
+
+                </div>
+
+            </div>
+
+        `;
+    }
+}
+
+function openReferenceGroupForm() {
+
+    openModal(
+        "Reference Group",
+        `
+
+            <form
+                id="referenceGroupForm"
+                onsubmit="saveReferenceGroup(event)"
+            >
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+
+                        <label>
+                            Name
+                        </label>
+
+                        <input
+                            name="name"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>
+                            Minimum age
+                        </label>
+
+                        <input
+                            name="age_min"
+                            type="number"
+                            min="0"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>
+                            Maximum age
+                        </label>
+
+                        <input
+                            name="age_max"
+                            type="number"
+                            min="0"
+                            required
+                        >
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>
+                            Sex
+                        </label>
+
+                        <select
+                            name="sex"
+                            required
+                        >
+
+                            <option value="">
+                                Select
+                            </option>
+
+                            <option value="male">
+                                Male
+                            </option>
+
+                            <option value="female">
+                                Female
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>
+                            Bone
+                        </label>
+
+                        <select
+                            name="bone"
+                            required
+                        >
+
+                            <option value="radius">
+                                Radius
+                            </option>
+
+                            <option value="ulna">
+                                Ulna
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                    <div class="form-group">
+
+                        <label>
+                            Side
+                        </label>
+
+                        <select
+                            name="side"
+                            required
+                        >
+
+                            <option value="left">
+                                Left
+                            </option>
+
+                            <option value="right">
+                                Right
+                            </option>
+
+                        </select>
+
+                    </div>
+
+                </div>
+
+
+                <div class="button-row">
+
+                    <button
+                        class="button primary"
+                        type="submit"
+                    >
+                        Save Group
+                    </button>
+
+                    <button
+                        class="button secondary"
+                        type="button"
+                        onclick="closeModal()"
+                    >
+                        Cancel
+                    </button>
+
+                </div>
+
+            </form>
+
+        `
+    );
+}
+
+function updateNavigation() {
+
+    document
+        .querySelectorAll(
+            ".nav-item"
+        )
+        .forEach(item => {
+
+            item.classList.toggle(
+                "active",
+                item.dataset.page ===
+                    currentPage
+            );
+        });
+}
 
 function openPatientForm(
     patient = null
@@ -2251,7 +4789,6 @@ function openPatientForm(
     );
 }
 
-
 async function savePatient(
     event,
     patientId
@@ -2376,11 +4913,6 @@ async function savePatient(
         );
     }
 }
-
-
-/* ================================================================
-   VIEW PATIENT
-================================================================ */
 
 async function viewPatient(
     patientId
@@ -2743,7 +5275,6 @@ async function viewPatient(
     `;
 }
 
-
 function getPatientScanPreferences(
     patientId
 ) {
@@ -2799,7 +5330,6 @@ function getPatientScanPreferences(
     }
 }
 
-
 function savePatientScanPreferences(
     patientId,
     bone,
@@ -2829,93 +5359,6 @@ function savePatientScanPreferences(
         );
     }
 }
-
-
-/* ================================================================
-   DELETE PATIENT
-================================================================ */
-
-async function deletePatient(
-    patientId
-) {
-
-    if (!isStaff()) {
-        return;
-    }
-
-
-    const confirmed =
-        confirm(
-            "Delete this patient record?\n\nThe patient will be removed from the active patient list."
-        );
-
-
-    if (!confirmed) {
-        return;
-    }
-
-
-    try {
-
-        const {
-            data,
-            error
-        } = await db.rpc(
-            "delete_patient_record",
-            {
-                p_patient_id:
-                    patientId
-            }
-        );
-
-
-        if (error) {
-            throw error;
-        }
-
-
-        if (data?.success === false) {
-            throw new Error(
-                data.message ||
-                "Unable to delete patient."
-            );
-        }
-
-
-        toast(
-            "Patient deleted.",
-            "success"
-        );
-
-
-        if (selectedPatientId === patientId) {
-            selectedPatientId = null;
-        }
-
-
-        await renderPatients();
-
-
-    } catch (error) {
-
-        console.error(
-            "Delete patient error:",
-            error
-        );
-
-
-        toast(
-            error.message ||
-            "Unable to delete patient.",
-            "error"
-        );
-    }
-}
-
-
-/* ================================================================
-   MEASUREMENTS
-================================================================ */
 
 async function renderMeasurements() {
 
@@ -3085,215 +5528,27 @@ async function renderMeasurements() {
     `;
 }
 
+async function loadScannerPatients() {
 
-/* ================================================================
-   SCANNER
-================================================================ */
-
-async function renderScanner() {
-
-    const content =
+    const select =
         document.getElementById(
-            "mainContent"
+            "scannerPatientSelect"
         );
 
 
-    const {
-        data: devices,
-        error
-    } = await db
-        .from("devices")
-        .select("*")
-        .order(
-            "created_at",
-            {
-                ascending: true
-            }
-        );
-
-
-    if (error) {
-        throw error;
-    }
-
-
-    const device =
-        devices?.find(
-            d =>
-                d.device_code ===
-                "ABS-001"
-        ) ||
-        devices?.[0];
-
-
-    content.innerHTML = `
-
-        <div class="page-header">
-
-            <div>
-
-                <div class="section-kicker">
-                    SCANNER CONTROL
-                </div>
-
-                <h2>
-                    Scanner
-                </h2>
-
-                <p>
-                    Prepare and request an acoustic measurement.
-                </p>
-
-            </div>
-
-        </div>
-
-
-        <section class="panel">
-
-            <div class="panel-header">
-
-                <div>
-
-                    <h3>
-                        Scanner status
-                    </h3>
-
-                    <p>
-                        Device configuration and connectivity.
-                    </p>
-
-                </div>
-
-                ${
-                    device
-                        ? `
-                            <span class="badge success">
-                                Registered
-                            </span>
-                        `
-                        : `
-                            <span class="badge danger">
-                                Device missing
-                            </span>
-                        `
-                }
-
-            </div>
-
-            <div class="panel-body">
-
-                <div class="scanner-status">
-
-                    ${scannerInfoCard(
-                        "Device",
-                        device?.device_code ||
-                            "ABS-001",
-                        "Scanner ID"
-                    )}
-
-                    ${scannerInfoCard(
-                        "Status",
-                        device?.status ||
-                            "Unknown",
-                        "Reported status"
-                    )}
-
-                    ${scannerInfoCard(
-                        "Sweep",
-                        "200–1200 Hz",
-                        "25 Hz coarse steps"
-                    )}
-
-                    ${scannerInfoCard(
-                        "Sampling",
-                        "8 kHz / 256 samples",
-                        "Per frequency"
-                    )}
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <section class="panel">
-
-            <div class="panel-header">
-
-                <div>
-
-                    <h3>
-                        Start patient measurement
-                    </h3>
-
-                    <p>
-                        Select a patient and measurement location.
-                    </p>
-
-                </div>
-
-            </div>
-
-            <div class="panel-body">
-
-                <div id="scannerPatientSelector">
-
-                    ${renderLoading(
-                        "Loading patients..."
-                    )}
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-        <section class="research-note">
-
-            <strong>
-                Measurement workflow
-            </strong>
-
-            <p>
-                The operator selects the patient, radius or ulna,
-                and left or right side. The website creates a
-                scan request for the configured ESP32 scanner.
-                The scanner performs the sweep and returns the
-                measured f0, RMS, bandwidth and Q-factor.
-            </p>
-
-        </section>
-
-    `;
-
-
-    await loadScannerPatientSelector();
-}
-
-
-async function loadScannerPatientSelector() {
-
-    const container =
-        document.getElementById(
-            "scannerPatientSelector"
-        );
-
-
-    if (!container) {
+    if (!select) {
         return;
     }
 
 
     const {
-        data: patients,
+        data,
         error
     } = await db
         .from("patients")
-        .select("*")
-        .is("deleted_at", null)
+        .select(
+            "id, name, patient_code"
+        )
         .order(
             "name",
             {
@@ -3304,439 +5559,140 @@ async function loadScannerPatientSelector() {
 
     if (error) {
 
-        container.innerHTML =
-            renderError(
-                error.message
-            );
+        console.error(
+            "Patient list error:",
+            error
+        );
 
         return;
     }
 
 
-    if (!patients?.length) {
+    select.innerHTML = `
 
-        container.innerHTML =
-            renderEmpty(
-                "No patients available",
-                "Create a patient before starting a scan.",
-                "👤"
-            );
+        <option value="">
+            Select patient
+        </option>
 
-        return;
-    }
+        ${(data || [])
+            .map(
+                patient => `
 
-
-    container.innerHTML = `
-
-        <form
-            id="scannerRequestForm"
-            onsubmit="createScanRequest(event)"
-        >
-
-            <div class="form-grid">
-
-                <div>
-
-                    <label class="form-label">
-                        Patient
-                    </label>
-
-                    <select
-                        name="patient_id"
-                        required
+                    <option
+                        value="${escapeAttribute(
+                            patient.id
+                        )}"
                     >
+                        ${escapeHtml(
+                            patient.name ||
+                            "Unnamed"
+                        )}
+                        —
+                        ${escapeHtml(
+                            patient.patient_code ||
+                            ""
+                        )}
+                    </option>
 
-                        <option value="">
-                            Select patient
-                        </option>
-
-                        ${patients
-                            .map(
-                                p => `
-
-                                    <option
-                                        value="${escapeAttribute(
-                                            p.id
-                                        )}"
-                                    >
-                                        ${escapeHtml(
-                                            p.name ||
-                                            "Unnamed"
-                                        )}
-                                        —
-                                        ${escapeHtml(
-                                            p.patient_code ||
-                                            "No code"
-                                        )}
-                                    </option>
-
-                                `
-                            )
-                            .join("")}
-
-                    </select>
-
-                </div>
-
-
-                <div>
-
-                    <label class="form-label">
-                        Bone
-                    </label>
-
-                    <select
-                        name="bone"
-                        required
-                    >
-
-                        <option value="">
-                            Select bone
-                        </option>
-
-                        <option value="radius">
-                            Radius
-                        </option>
-
-                        <option value="ulna">
-                            Ulna
-                        </option>
-
-                    </select>
-
-                </div>
-
-
-                <div>
-
-                    <label class="form-label">
-                        Side
-                    </label>
-
-                    <select
-                        name="side"
-                        required
-                    >
-
-                        <option value="">
-                            Select side
-                        </option>
-
-                        <option value="left">
-                            Left
-                        </option>
-
-                        <option value="right">
-                            Right
-                        </option>
-
-                    </select>
-
-                </div>
-
-
-                <div>
-
-                    <label class="form-label">
-                        Scanner
-                    </label>
-
-                    <input
-                        value="ABS-001"
-                        disabled
-                    >
-
-                </div>
-
-            </div>
-
-
-            <div class="form-actions">
-
-                <button
-                    class="button primary"
-                    type="submit"
-                >
-                    Create scan request
-                </button>
-
-            </div>
-
-        </form>
-
-        <div id="scanRequestStatus"></div>
+                `
+            )
+            .join("")}
 
     `;
 
 
-    const scannerForm =
-        document.getElementById(
-            "scannerRequestForm"
-        );
+    select.addEventListener(
+        "change",
+        () => {
+
+            const patientId =
+                select.value;
 
 
-    if (scannerForm) {
+            if (!patientId) {
+                return;
+            }
 
-        const patientSelect =
-            scannerForm.querySelector(
-                'select[name="patient_id"]'
-            );
 
-        const boneSelect =
-            scannerForm.querySelector(
-                'select[name="bone"]'
-            );
+            const preferences =
+                getPatientScanPreferences(
+                    patientId
+                );
 
-        const sideSelect =
-            scannerForm.querySelector(
-                'select[name="side"]'
-            );
 
-        if (patientSelect && selectedPatientId) {
-            patientSelect.value =
-                selectedPatientId;
+            const form =
+                document.getElementById(
+                    "scannerRequestForm"
+                );
+
+
+            if (!form) {
+                return;
+            }
+
+
+            const bone =
+                form.querySelector(
+                    '[name="bone"]'
+                );
+
+            const side =
+                form.querySelector(
+                    '[name="side"]'
+                );
+
+
+            if (bone) {
+                bone.value =
+                    preferences.bone || "";
+            }
+
+
+            if (side) {
+                side.value =
+                    preferences.side || "";
+            }
+
         }
-
-        const preferences =
-            getPatientScanPreferences(
-                selectedPatientId
-            );
-
-        if (boneSelect && preferences.bone) {
-            boneSelect.value =
-                preferences.bone;
-        }
-
-        if (sideSelect && preferences.side) {
-            sideSelect.value =
-                preferences.side;
-        }
-    }
+    );
 }
 
+function startScannerStatusRefresh() {
 
-/* ================================================================
-   CREATE SCAN REQUEST
-================================================================ */
-
-async function createScanRequest(event) {
-    event.preventDefault();
-
-    const form = event.currentTarget;
-    const data = Object.fromEntries(new FormData(form));
-
-    const device = await getScannerDevice();
-
-    if (!device) {
-        toast("Scanner device ABS-001 was not found in Supabase.", "error");
-        return;
-    }
-
-    const status = document.getElementById("scanRequestStatus");
-
-    try {
-        const {
-            data: scanRequest,
-            error: scanRequestError
-        } = await db
-            .from("scan_requests")
-            .insert({
-                device_id: device.id,
-                patient_id: data.patient_id,
-                operator_id: currentUser.id,
-
-                // Database allows only: patient or reference
-                scan_type: "patient",
-
-                status: "pending",
-                requested_at: new Date().toISOString(),
-                bone: data.bone || null,
-                side: data.side || null
-            })
-            .select("*")
-            .single();
-
-        if (scanRequestError) {
-            throw scanRequestError;
-        }
-
-        selectedPatientId = data.patient_id;
-
-        savePatientScanPreferences(
-            data.patient_id,
-            data.bone,
-            data.side
-        );
-
-        if (status) {
-            status.innerHTML = `
-                <div class="success-message">
-                    Scan request created successfully.<br>
-                    Request ID: <strong>${escapeHtml(scanRequest.id)}</strong><br>
-                    Scanner: <strong>ABS-001</strong><br>
-                    Status: <strong>Waiting for scanner</strong>
-                </div>
-            `;
-        }
-
-        toast("Scan request sent to ABS-001.", "success");
-
-        monitorScanRequest(scanRequest.id);
-
-    } catch (error) {
-        console.error("Create scan request error:", error);
-
-        if (status) {
-            status.innerHTML = `
-                <div class="error-message">
-                    ${escapeHtml(error.message || "Unable to create scan request.")}
-                </div>
-            `;
-        }
-
-        toast(
-            error.message || "Unable to create scan request.",
-            "error"
-        );
-    }
-}
-
-/* ================================================================
-   SCAN REQUEST POLLING
-================================================================ */
-
-function monitorScanRequest(
-    requestId
-) {
-
-    stopScanPolling();
-
-
-    let attempts = 0;
+    stopScannerStatusRefresh();
 
 
     scanPollTimer =
         setInterval(
             async () => {
 
-                attempts++;
+                if (
+                    currentPage !==
+                    "scanner"
+                ) {
+                    stopScannerStatusRefresh();
+                    return;
+                }
 
 
                 try {
 
-                    const {
-                        data,
-                        error
-                    } = await db
-                        .from("scan_requests")
-                        .select("*")
-                        .eq(
-                            "id",
-                            requestId
-                        )
-                        .single();
-
-
-                    if (error) {
-                        throw error;
-                    }
-
-
-                    const status =
-                        document.getElementById(
-                            "activeScanStatus"
-                        ) ||
-                        document.getElementById(
-                            "scanRequestStatus"
-                        );
-
-
-                    if (status) {
-
-                        status.textContent =
-                            `Scanner status: ${
-                                data.status ||
-                                "pending"
-                            }`;
-                    }
-
-
-                    if (
-                        [
-                            "completed",
-                            "error",
-                            "cancelled"
-                        ].includes(
-                            data.status
-                        )
-                    ) {
-
-                        stopScanPolling();
-
-
-                        if (
-                            data.status ===
-                            "completed"
-                        ) {
-
-                            toast(
-                                "Scanner measurement completed.",
-                                "success"
-                            );
-
-                            if (
-                                selectedPatientId &&
-                                document.getElementById(
-                                    "patientScannerPanel"
-                                )
-                            ) {
-                                await viewPatient(
-                                    selectedPatientId
-                                );
-                            }
-
-                        } else {
-
-                            toast(
-                                `Scan ${data.status}.`,
-                                "error"
-                            );
-                        }
-                    }
-
-
-                    /*
-                     * Stop polling after 10 minutes.
-                     */
-
-                    if (
-                        attempts >= 400
-                    ) {
-
-                        stopScanPolling();
-
-                        if (status) {
-
-                            status.textContent =
-                                "Scanner request timed out. Check the device connection.";
-                        }
-                    }
+                    await refreshScannerStatus();
 
                 } catch (error) {
 
                     console.error(
-                        "Scan polling error:",
+                        "Scanner status refresh error:",
                         error
                     );
                 }
 
             },
-            1500
+            15000
         );
 }
 
-
-function stopScanPolling() {
+function stopScannerStatusRefresh() {
 
     if (scanPollTimer) {
 
@@ -3748,85 +5704,19 @@ function stopScanPolling() {
     }
 }
 
-
-/* ================================================================
-   QUICK PATIENT SCAN
-================================================================ */
-
-async function startPatientScan(
-    patientId
-) {
-
-    if (!isStaff()) {
-        return;
-    }
-
-
-    selectedPatientId =
-        patientId;
-
-
-    try {
-
-        await viewPatient(
-            patientId
-        );
-
-        const scannerPanel =
-            document.getElementById(
-                "patientScannerPanel"
-            );
-
-        if (scannerPanel) {
-            scannerPanel.scrollIntoView({
-                behavior: "smooth",
-                block: "start"
-            });
-        }
-
-    } catch (error) {
-
-        console.error(
-            "Open patient scanner error:",
-            error
-        );
-
-        toast(
-            error.message ||
-            "Unable to open the patient scanner.",
-            "error"
-        );
-    }
-}
-
-
-
-/* ================================================================
-   REFERENCES
-================================================================ */
-
-async function renderReferences() {
-
-    if (!isAdmin()) {
-
-        showAccessDenied();
-
-        return;
-    }
-
+async function refreshScannerStatus() {
 
     const {
-        data: groups,
+        data,
         error
     } = await db
-        .from("reference_groups")
+        .from("devices")
         .select("*")
-        .order(
-            "age_min",
-            {
-                ascending: true
-            }
-        );
+        .eq(
+            "device_code",
+            "ABS-001"
+        )
+        .maybeSingle();
 
 
     if (error) {
@@ -3834,443 +5724,550 @@ async function renderReferences() {
     }
 
 
-    referenceGroupsCache =
-        groups || [];
-
-
-    const sampleCounts =
-        {};
-
-
-    for (
-        const group of referenceGroupsCache
-    ) {
-
-        const {
-            count
-        } = await db
-            .from("reference_samples")
-            .select(
-                "*",
-                {
-                    count: "exact",
-                    head: true
-                }
-            )
-            .eq(
-                "reference_group_id",
-                group.id
-            );
-
-
-        sampleCounts[group.id] =
-            count || 0;
-    }
-
-
-    const content =
-        document.getElementById(
-            "mainContent"
+    const online =
+        isScannerOnline(
+            data
         );
 
 
-    content.innerHTML = `
+    const statusPill =
+        document.querySelector(
+            ".status-pill"
+        );
 
-        <div class="page-header">
 
-            <div>
+    if (statusPill) {
 
-                <div class="section-kicker">
-                    RESEARCH DATABASE
+        statusPill.className =
+            `status-pill ${
+                online
+                    ? "online"
+                    : "offline"
+            }`;
+
+
+        statusPill.innerHTML = `
+
+            <span class="status-dot"></span>
+
+            ${online
+                ? "Online"
+                : "Offline"}
+
+        `;
+    }
+
+
+    const startButton =
+        document.querySelector(
+            '#scannerRequestForm button[type="submit"]'
+        );
+
+
+    if (startButton) {
+        startButton.disabled =
+            !online;
+    }
+}
+
+async function createScanRequest(
+    event
+) {
+
+    event.preventDefault();
+
+
+    if (!isStaff()) {
+        return;
+    }
+
+
+    const form =
+        event.currentTarget;
+
+
+    const formData =
+        new FormData(form);
+
+
+    const patientId =
+        String(
+            formData.get(
+                "patient_id"
+            ) || ""
+        ).trim();
+
+
+    const bone =
+        String(
+            formData.get(
+                "bone"
+            ) || ""
+        ).trim()
+        .toLowerCase();
+
+
+    const side =
+        String(
+            formData.get(
+                "side"
+            ) || ""
+        ).trim()
+        .toLowerCase();
+
+
+    if (!patientId) {
+
+        toast(
+            "Please select a patient.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (!bone) {
+
+        toast(
+            "Please select a bone.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (!side) {
+
+        toast(
+            "Please select a side.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    const device =
+        await getScannerDevice();
+
+
+    if (!device) {
+
+        toast(
+            "Scanner device ABS-001 was not found.",
+            "error"
+        );
+
+        return;
+    }
+
+
+    if (!device.is_online) {
+
+        const status =
+            document.getElementById(
+                "scanRequestStatus"
+            );
+
+
+        if (status) {
+
+            status.innerHTML = `
+
+                <div class="error-message">
+
+                    <strong>
+                        Scanner offline
+                    </strong>
+
+                    <br>
+
+                    ABS-001 is not currently connected.
+
+                    Turn on the scanner and connect it
+                    to Wi-Fi, then try again.
+
                 </div>
 
-                <h2>
-                    Reference Groups
-                </h2>
+            `;
+        }
 
-                <p>
-                    Define population reference groups by
-                    age, sex, bone and side.
-                </p>
+
+        toast(
+            "ABS-001 is offline. Turn on the scanner and connect it to Wi-Fi before starting a scan.",
+            "error"
+        );
+
+
+        return;
+    }
+
+
+    savePatientScanPreferences(
+        patientId,
+        bone,
+        side
+    );
+
+
+    const submitButton =
+        form.querySelector(
+            'button[type="submit"]'
+        );
+
+
+    if (submitButton) {
+
+        submitButton.disabled =
+            true;
+
+        submitButton.textContent =
+            "Sending request...";
+
+    }
+
+
+    const status =
+        document.getElementById(
+            "scanRequestStatus"
+        );
+
+
+    if (status) {
+
+        status.innerHTML = `
+
+            <div class="info-message">
+
+                Sending scan request
+                to ABS-001...
 
             </div>
 
-            <div class="actions">
-
-                <button
-                    class="button primary"
-                    onclick="openReferenceGroupForm()"
-                >
-                    + Add reference group
-                </button>
-
-            </div>
-
-        </div>
+        `;
+    }
 
 
-        <section class="panel">
+    try {
 
-            <div class="panel-header">
+        const payload = {
 
-                <div>
+            patient_id:
+                patientId,
 
-                    <h3>
-                        Reference groups
-                    </h3>
+            operator_id:
+                currentProfile?.id ||
+                currentUser?.id ||
+                null,
 
-                    <p>
-                        Reference groups remain separate
-                        from individual scanner/device baselines.
-                    </p>
+            device_id:
+                device.id,
+
+            bone:
+                bone,
+
+            side:
+                side,
+
+            status:
+                "pending",
+
+            requested_at:
+                new Date().toISOString()
+
+        };
+
+
+        const {
+            data,
+            error
+        } = await db
+            .from("scan_requests")
+            .insert(
+                payload
+            )
+            .select()
+            .single();
+
+
+        if (error) {
+            throw error;
+        }
+
+
+        if (status) {
+
+            status.innerHTML = `
+
+                <div class="success-message">
+
+                    <strong>
+                        Scan request sent.
+                    </strong>
+
+                    <br>
+
+                    Keep the scanner connected
+                    while the measurement is running.
 
                 </div>
 
-            </div>
+            `;
+        }
 
 
-            ${
-                referenceGroupsCache.length
-                    ? `
-                        <div class="panel-body">
+        toast(
+            "Scan request sent to ABS-001.",
+            "success"
+        );
 
-                            <div class="reference-group-grid">
 
-                                ${referenceGroupsCache
-                                    .map(
-                                        group =>
-                                            renderReferenceGroupCard(
-                                                group,
-                                                sampleCounts[
-                                                    group.id
-                                                ] || 0
-                                            )
-                                    )
-                                    .join("")}
+        if (
+            selectedPatientId ===
+            patientId
+        ) {
 
-                            </div>
+            /*
+             * Keep the patient record open.
+             * Do not navigate back to the
+             * general scanner page.
+             */
 
-                        </div>
-                    `
-                    : renderEmpty(
-                        "No reference groups",
-                        "Create the first reference group for the research dataset.",
-                        "🧬"
-                    )
+            await waitForPatientMeasurement(
+                patientId,
+                data?.id
+            );
+
+        }
+
+
+    } catch (error) {
+
+        console.error(
+            "Create scan request error:",
+            error
+        );
+
+
+        if (status) {
+
+            status.innerHTML = `
+
+                <div class="error-message">
+
+                    ${escapeHtml(
+                        error.message ||
+                        "Unable to create scan request."
+                    )}
+
+                </div>
+
+            `;
+        }
+
+
+        toast(
+            error.message ||
+            "Unable to create scan request.",
+            "error"
+        );
+
+    } finally {
+
+        if (submitButton) {
+
+            submitButton.disabled =
+                false;
+
+            submitButton.textContent =
+                "Start scan for this patient";
+
+        }
+    }
+}
+
+async function waitForPatientMeasurement(
+    patientId,
+    requestId
+) {
+
+    const status =
+        document.getElementById(
+            "scanRequestStatus"
+        );
+
+
+    let attempts = 0;
+
+
+    const maxAttempts =
+        240;
+
+
+    while (
+        attempts <
+        maxAttempts
+    ) {
+
+        attempts++;
+
+
+        await new Promise(
+            resolve =>
+                setTimeout(
+                    resolve,
+                    2500
+                )
+        );
+
+
+        try {
+
+            const {
+                data: request,
+                error:
+                    requestError
+            } = await db
+                .from("scan_requests")
+                .select("*")
+                .eq(
+                    "id",
+                    requestId
+                )
+                .maybeSingle();
+
+
+            if (requestError) {
+                throw requestError;
             }
 
-        </section>
 
-    `;
+            if (!request) {
+                continue;
+            }
+
+
+            if (
+                request.status ===
+                "completed"
+            ) {
+
+                if (status) {
+
+                    status.innerHTML = `
+
+                        <div class="success-message">
+
+                            <strong>
+                                Scan completed.
+                            </strong>
+
+                            <br>
+
+                            The measurement has been
+                            added to this patient record.
+
+                        </div>
+
+                    `;
+                }
+
+
+                await viewPatient(
+                    patientId
+                );
+
+
+                return true;
+            }
+
+
+            if (
+                request.status ===
+                "failed"
+            ) {
+
+                if (status) {
+
+                    status.innerHTML = `
+
+                        <div class="error-message">
+
+                            <strong>
+                                Scan failed.
+                            </strong>
+
+                            <br>
+
+                            ${escapeHtml(
+                                request.error_message ||
+                                "The scanner reported a failure."
+                            )}
+
+                        </div>
+
+                    `;
+                }
+
+
+                return false;
+            }
+
+
+            if (status) {
+
+                status.innerHTML = `
+
+                    <div class="info-message">
+
+                        Scanner is processing the request...
+
+                        <br>
+
+                        <small>
+                            ${escapeHtml(
+                                request.status ||
+                                "pending"
+                            )}
+                        </small>
+
+                    </div>
+
+                `;
+            }
+
+
+        } catch (error) {
+
+            console.error(
+                "Scan polling error:",
+                error
+            );
+        }
+    }
+
+
+    if (status) {
+
+        status.innerHTML = `
+
+            <div class="warning-message">
+
+                The scan is still processing.
+
+                You can remain on this patient record
+                and refresh later to see the result.
+
+            </div>
+
+        `;
+    }
+
+
+    return false;
 }
-
-
-function renderReferenceGroupCard(
-    group,
-    sampleCount
-) {
-
-    return `
-
-        <article
-            class="reference-group-card"
-        >
-
-            <div class="section-kicker">
-                ${escapeHtml(
-                    group.sex ||
-                    ""
-                ).toUpperCase()}
-            </div>
-
-            <h3>
-                ${escapeHtml(
-                    group.name
-                )}
-            </h3>
-
-
-            <div class="reference-group-meta">
-
-                <span class="badge primary">
-                    Age ${group.age_min}–${group.age_max}
-                </span>
-
-                <span class="badge neutral">
-                    ${capitalize(
-                        group.bone
-                    )}
-                </span>
-
-                <span class="badge neutral">
-                    ${capitalize(
-                        group.side
-                    )}
-                </span>
-
-                <span class="badge success">
-                    ${sampleCount}
-                    sample${sampleCount === 1 ? "" : "s"}
-                </span>
-
-            </div>
-
-
-            <div class="reference-group-description">
-
-                ${escapeHtml(
-                    group.description ||
-                    "No description."
-                )}
-
-            </div>
-
-
-            <div class="reference-group-footer">
-
-                <button
-                    class="button small secondary"
-                    onclick="openReferenceSamples('${group.id}')"
-                >
-                    View samples
-                </button>
-
-                <div class="actions">
-
-                    <button
-                        class="button small secondary"
-                        onclick="editReferenceGroup('${group.id}')"
-                    >
-                        Edit
-                    </button>
-
-                    <button
-                        class="button small danger"
-                        onclick="deleteReferenceGroup('${group.id}')"
-                    >
-                        Delete
-                    </button>
-
-                </div>
-
-            </div>
-
-        </article>
-
-    `;
-}
-
-
-/* ================================================================
-   REFERENCE GROUP FORM
-================================================================ */
-
-function openReferenceGroupForm(
-    existing = null
-) {
-
-    openModal(
-        existing
-            ? "Edit reference group"
-            : "Create reference group",
-
-        `
-
-            <form
-                onsubmit="saveReferenceGroup(event, '${existing?.id || ""}')"
-            >
-
-                <div class="form-grid">
-
-                    <div class="full-width">
-
-                        <label class="form-label">
-                            Group name
-                        </label>
-
-                        <input
-                            name="name"
-                            required
-                            value="${escapeAttribute(
-                                existing?.name || ""
-                            )}"
-                            placeholder="Female 30–39 Left Radius"
-                        >
-
-                    </div>
-
-
-                    <div>
-
-                        <label class="form-label">
-                            Minimum age
-                        </label>
-
-                        <input
-                            name="age_min"
-                            type="number"
-                            min="0"
-                            required
-                            value="${escapeAttribute(
-                                existing?.age_min ?? ""
-                            )}"
-                        >
-
-                    </div>
-
-
-                    <div>
-
-                        <label class="form-label">
-                            Maximum age
-                        </label>
-
-                        <input
-                            name="age_max"
-                            type="number"
-                            min="0"
-                            required
-                            value="${escapeAttribute(
-                                existing?.age_max ?? ""
-                            )}"
-                        >
-
-                    </div>
-
-
-                    <div>
-
-                        <label class="form-label">
-                            Sex
-                        </label>
-
-                        <select
-                            name="sex"
-                            required
-                        >
-
-                            <option value="">
-                                Select
-                            </option>
-
-                            ${selectOption(
-                                "male",
-                                existing?.sex
-                            )}
-
-                            ${selectOption(
-                                "female",
-                                existing?.sex
-                            )}
-
-                            ${selectOption(
-                                "other",
-                                existing?.sex
-                            )}
-
-                        </select>
-
-                    </div>
-
-
-                    <div>
-
-                        <label class="form-label">
-                            Bone
-                        </label>
-
-                        <select
-                            name="bone"
-                            required
-                        >
-
-                            ${selectOption(
-                                "radius",
-                                existing?.bone
-                            )}
-
-                            ${selectOption(
-                                "ulna",
-                                existing?.bone
-                            )}
-
-                        </select>
-
-                    </div>
-
-
-                    <div>
-
-                        <label class="form-label">
-                            Side
-                        </label>
-
-                        <select
-                            name="side"
-                            required
-                        >
-
-                            ${selectOption(
-                                "left",
-                                existing?.side
-                            )}
-
-                            ${selectOption(
-                                "right",
-                                existing?.side
-                            )}
-
-                        </select>
-
-                    </div>
-
-
-                    <div class="full-width">
-
-                        <label class="form-label">
-                            Description
-                        </label>
-
-                        <textarea
-                            name="description"
-                            placeholder="Optional description"
-                        >${escapeHtml(
-                            existing?.description ||
-                            ""
-                        )}</textarea>
-
-                    </div>
-
-                </div>
-
-
-                <div class="form-actions">
-
-                    <button
-                        type="button"
-                        class="button secondary"
-                        onclick="closeModal()"
-                    >
-                        Cancel
-                    </button>
-
-                    <button
-                        type="submit"
-                        class="button primary"
-                    >
-                        ${existing
-                            ? "Save changes"
-                            : "Create group"}
-                    </button>
-
-                </div>
-
-            </form>
-
-        `
-    );
-}
-
 
 async function saveReferenceGroup(
     event,
@@ -4422,11 +6419,6 @@ async function saveReferenceGroup(
     }
 }
 
-
-/* ================================================================
-   EDIT REFERENCE GROUP
-================================================================ */
-
 function editReferenceGroup(
     groupId
 ) {
@@ -4453,11 +6445,6 @@ function editReferenceGroup(
         group
     );
 }
-
-
-/* ================================================================
-   DELETE REFERENCE GROUP
-================================================================ */
 
 async function deleteReferenceGroup(
     groupId
@@ -4521,11 +6508,6 @@ async function deleteReferenceGroup(
         );
     }
 }
-
-
-/* ================================================================
-   REFERENCE SAMPLES
-================================================================ */
 
 async function openReferenceSamples(
     groupId
@@ -4616,15 +6598,91 @@ async function openReferenceSamples(
             <div class="actions">
 
                 <button
+                    class="button secondary"
+                    onclick="openReferenceGroupForm(${JSON.stringify(
+                        group
+                    ).replace(/"/g, "&quot;")})"
+                >
+                    Edit group
+                </button>
+
+                <button
                     class="button primary"
                     onclick="openReferenceSampleForm('${group.id}')"
                 >
-                    + Add sample
+                    Add sample
                 </button>
 
             </div>
 
         </div>
+
+
+        <section class="panel">
+
+            <div class="panel-header">
+
+                <div>
+
+                    <h3>
+                        Reference group
+                    </h3>
+
+                    <p>
+                        ${escapeHtml(
+                            group.description ||
+                            "No description."
+                        )}
+                    </p>
+
+                </div>
+
+                <span class="badge neutral">
+                    Version
+                    ${escapeHtml(
+                        group.version ??
+                        "1"
+                    )}
+                </span>
+
+            </div>
+
+
+            <div class="panel-body">
+
+                <div class="stats-grid">
+
+                    ${statCard(
+                        "Age range",
+                        `${group.age_min}–${group.age_max}`
+                    )}
+
+                    ${statCard(
+                        "Sex",
+                        capitalize(
+                            group.sex
+                        )
+                    )}
+
+                    ${statCard(
+                        "Bone",
+                        capitalize(
+                            group.bone
+                        )
+                    )}
+
+                    ${statCard(
+                        "Side",
+                        capitalize(
+                            group.side
+                        )
+                    )}
+
+                </div>
+
+            </div>
+
+        </section>
 
 
         <section class="panel">
@@ -4697,7 +6755,6 @@ async function openReferenceSamples(
 
     `;
 }
-
 
 function renderReferenceSampleRow(
     sample
@@ -4781,11 +6838,6 @@ function renderReferenceSampleRow(
 
     `;
 }
-
-
-/* ================================================================
-   MANUAL REFERENCE SAMPLE
-================================================================ */
 
 async function openReferenceSampleForm(
     groupId
@@ -4934,7 +6986,6 @@ async function openReferenceSampleForm(
     );
 }
 
-
 async function saveReferenceSample(
     event,
     groupId
@@ -5051,26 +7102,87 @@ async function saveReferenceSample(
     }
 }
 
+function showAccessDenied() {
 
-/* ================================================================
-   DELETE REFERENCE SAMPLE
-================================================================ */
+    const content =
+        document.getElementById(
+            "mainContent"
+        );
 
-async function deleteReferenceSample(
-    sampleId,
-    sampleName
-) {
 
-    if (!isAdmin()) {
+    if (!content) {
         return;
     }
 
 
-    if (
-        !confirm(
-            `Delete reference sample "${sampleName}"?`
-        )
-    ) {
+    content.innerHTML = `
+
+        <div class="empty-state">
+
+            <div class="empty-icon">
+                🔒
+            </div>
+
+            <h3>
+                Access denied
+            </h3>
+
+            <p>
+                You do not have permission to view this section.
+            </p>
+
+            <button
+                class="button primary"
+                onclick="navigate('dashboard')"
+            >
+                Return to dashboard
+            </button>
+
+        </div>
+
+    `;
+}
+
+async function handleStaffLogin(
+    event
+) {
+
+    event.preventDefault();
+
+
+    const form =
+        event.currentTarget;
+
+
+    const emailInput =
+        form.querySelector(
+            'input[name="email"]'
+        );
+
+
+    const passwordInput =
+        form.querySelector(
+            'input[name="password"]'
+        );
+
+
+    const email =
+        emailInput?.value
+            ?.trim();
+
+
+    const password =
+        passwordInput?.value ||
+        "";
+
+
+    if (!email || !password) {
+
+        toast(
+            "Please enter your email and password.",
+            "error"
+        );
+
         return;
     }
 
@@ -5078,14 +7190,15 @@ async function deleteReferenceSample(
     try {
 
         const {
+            data,
             error
-        } = await db
-            .from("reference_samples")
-            .delete()
-            .eq(
-                "id",
-                sampleId
-            );
+        } = await db.auth.signInWithPassword({
+
+            email,
+
+            password
+
+        });
 
 
         if (error) {
@@ -5093,36 +7206,562 @@ async function deleteReferenceSample(
         }
 
 
-        toast(
-            "Reference sample deleted.",
-            "success"
-        );
+        currentUser =
+            data.user;
 
 
-        navigate(
-            "references"
-        );
+        await loadCurrentProfile();
+
+
+        if (!currentProfile) {
+
+            throw new Error(
+                "No staff profile is associated with this account."
+            );
+        }
+
+
+        showApp();
+
 
     } catch (error) {
 
         console.error(
-            "Delete reference sample error:",
+            "Staff login error:",
             error
         );
 
 
         toast(
             error.message ||
-            "Unable to delete sample.",
+            "Unable to sign in.",
             "error"
         );
     }
 }
 
+async function countRows(
+    table
+) {
 
-/* ================================================================
-   DEVICES
-================================================================ */
+    const {
+        count,
+        error
+    } = await db
+        .from(table)
+        .select(
+            "*",
+            {
+                count: "exact",
+                head: true
+            }
+        );
+
+
+    if (error) {
+
+        console.error(
+            `Count ${table} error:`,
+            error
+        );
+
+        return 0;
+    }
+
+
+    return count || 0;
+}
+
+function updateConnectionStatus(
+    connected
+) {
+
+    const label =
+        document.getElementById(
+            "connectionLabel"
+        );
+
+
+    if (!label) {
+        return;
+    }
+
+
+    label.textContent =
+        connected
+            ? "Connected"
+            : "Offline";
+}
+
+function setMessage(
+    element,
+    message,
+    type = "error"
+) {
+
+    if (!element) {
+        return;
+    }
+
+
+    element.textContent =
+        message || "";
+
+
+    element.className =
+        "form-message";
+
+
+    if (type) {
+
+        element.classList.add(
+            type
+        );
+    }
+}
+
+function clearMessage(
+    element
+) {
+
+    if (!element) {
+        return;
+    }
+
+
+    element.textContent =
+        "";
+
+    element.className =
+        "form-message";
+}
+
+function setButtonLoading(
+    button,
+    loading,
+    text
+) {
+
+    if (!button) {
+        return;
+    }
+
+
+    if (loading) {
+
+        button.disabled =
+            true;
+
+
+        button.dataset.originalText =
+            button.textContent;
+
+
+        button.textContent =
+            text;
+
+    } else {
+
+        button.disabled =
+            false;
+
+
+        button.textContent =
+            text ||
+            button.dataset.originalText ||
+            "Submit";
+    }
+}
+
+function readableAuthError(
+    error
+) {
+
+    const message =
+        String(
+            error?.message ||
+            ""
+        );
+
+
+    const lower =
+        message.toLowerCase();
+
+
+    if (
+        lower.includes(
+            "invalid login credentials"
+        )
+    ) {
+
+        return "Email or password is incorrect.";
+    }
+
+
+    if (
+        lower.includes(
+            "email not confirmed"
+        )
+    ) {
+
+        return "Please confirm your email address before signing in.";
+    }
+
+
+    if (
+        lower.includes(
+            "user not found"
+        )
+    ) {
+
+        return "No account was found with this email address.";
+    }
+
+
+    if (
+        lower.includes(
+            "too many requests"
+        )
+    ) {
+
+        return "Too many attempts. Please wait and try again.";
+    }
+
+
+    return (
+        message ||
+        "Unable to sign in."
+    );
+}
+
+function showFatalError(
+    message
+) {
+
+    document.body.innerHTML = `
+
+        <div
+            style="
+                min-height:100vh;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                padding:30px;
+                font-family:system-ui,sans-serif;
+                background:#f4f7fb;
+            "
+        >
+
+            <div
+                style="
+                    max-width:520px;
+                    padding:30px;
+                    background:#fff;
+                    border:1px solid #e5e9f0;
+                    border-radius:16px;
+                    box-shadow:0 15px 40px rgba(0,0,0,.08);
+                "
+            >
+
+                <h1>
+                    Acoustic Bone Scanner
+                </h1>
+
+                <p>
+                    The application could not start.
+                </p>
+
+                <p>
+                    ${escapeHtml(message)}
+                </p>
+
+            </div>
+
+        </div>
+
+    `;
+}
+
+function toast(
+    message,
+    type = ""
+) {
+
+    const container =
+        document.getElementById(
+            "toastContainer"
+        );
+
+
+    if (!container) {
+        return;
+    }
+
+
+    const item =
+        document.createElement(
+            "div"
+        );
+
+
+    item.className =
+        `toast ${type}`;
+
+
+    item.textContent =
+        message;
+
+
+    container.appendChild(
+        item
+    );
+
+
+    setTimeout(
+        () => {
+
+            item.remove();
+
+        },
+        4000
+    );
+}
+
+function formatDate(
+    value
+) {
+
+    if (!value) {
+        return "—";
+    }
+
+
+    const date =
+        new Date(value);
+
+
+    if (
+        Number.isNaN(
+            date.getTime()
+        )
+    ) {
+
+        return "—";
+    }
+
+
+    return date.toLocaleString(
+        undefined,
+        {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        }
+    );
+}
+
+function formatNumber(
+    value
+) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+
+        return "—";
+    }
+
+
+    const number =
+        Number(value);
+
+
+    if (
+        Number.isNaN(number)
+    ) {
+
+        return "—";
+    }
+
+
+    if (
+        Number.isInteger(number)
+    ) {
+
+        return String(number);
+    }
+
+
+    return number.toFixed(
+        3
+    ).replace(
+        /\.?0+$/,
+        ""
+    );
+}
+
+function numberOrNull(
+    value
+) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+
+        return null;
+    }
+
+
+    const number =
+        Number(value);
+
+
+    return Number.isFinite(number)
+        ? number
+        : null;
+}
+
+function capitalize(
+    value
+) {
+
+    if (!value) {
+        return "";
+    }
+
+
+    return String(value)
+        .charAt(0)
+        .toUpperCase() +
+        String(value)
+            .slice(1);
+}
+
+function initials(
+    name
+) {
+
+    const parts =
+        String(name || "U")
+            .trim()
+            .split(/\s+/)
+            .filter(Boolean);
+
+
+    if (!parts.length) {
+        return "U";
+    }
+
+
+    return parts
+        .slice(0, 2)
+        .map(
+            part =>
+                part
+                    .charAt(0)
+                    .toUpperCase()
+        )
+        .join("");
+}
+
+function generatePatientCode() {
+
+    const chars =
+        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+
+    function block(length) {
+
+        let output = "";
+
+        for (
+            let i = 0;
+            i < length;
+            i++
+        ) {
+
+            output +=
+                chars.charAt(
+                    Math.floor(
+                        Math.random() *
+                        chars.length
+                    )
+                );
+        }
+
+        return output;
+    }
+
+
+    return `
+        ${block(4)}-${block(4)}-${block(2)}
+    `.trim();
+}
+
+function selectOption(
+    value,
+    selected
+) {
+
+    const isSelected =
+        String(value) ===
+        String(selected);
+
+
+    return `
+
+        <option
+            value="${escapeAttribute(value)}"
+            ${isSelected ? "selected" : ""}
+        >
+            ${escapeHtml(
+                capitalize(value)
+            )}
+        </option>
+
+    `;
+}
+
+function escapeAttribute(
+    value
+) {
+
+    return escapeHtml(
+        value
+    );
+}
+
+function escapeJsString(
+    value
+) {
+
+    return String(
+        value ??
+        ""
+    )
+        .replace(
+            /\\/g,
+            "\\\\"
+        )
+        .replace(
+            /'/g,
+            "\\'"
+        )
+        .replace(
+            /"/g,
+            '\\"'
+        )
+        .replace(
+            /\r?\n/g,
+            "\\n"
+        );
+}
 
 async function renderDevices() {
 
@@ -5289,12 +7928,6 @@ async function renderDevices() {
 
     `;
 }
-
-
-/* ================================================================
-   OPERATORS
-================================================================ */
-
 async function renderOperators() {
 
     if (!isAdmin()) {
@@ -5461,316 +8094,6 @@ async function renderOperators() {
 
     `;
 }
-
-
-/* ================================================================
-   DELETE OPERATOR
-================================================================ */
-
-async function deleteOperatorAccount(
-    operatorId,
-    operatorName
-) {
-
-    if (!isAdmin()) {
-        return;
-    }
-
-
-    if (
-        operatorId ===
-        currentUser?.id
-    ) {
-
-        toast(
-            "You cannot delete your own account.",
-            "error"
-        );
-
-        return;
-    }
-
-
-    if (
-        !confirm(
-            `Delete operator account "${operatorName}"?\n\nThis permanently removes the authentication account when the secure Supabase RPC is configured.`
-        )
-    ) {
-        return;
-    }
-
-
-    try {
-
-        const {
-            data,
-            error
-        } = await db.rpc(
-            "delete_operator_account",
-            {
-                operator_user_id:
-                    operatorId
-            }
-        );
-
-
-        if (error) {
-            throw error;
-        }
-
-
-        if (!data) {
-
-            throw new Error(
-                "The operator account was not deleted."
-            );
-        }
-
-
-        toast(
-            "Operator account deleted.",
-            "success"
-        );
-
-
-        await renderOperators();
-
-
-    } catch (error) {
-
-        console.error(
-            "Delete operator error:",
-            error
-        );
-
-
-        toast(
-            error.message ||
-            "Unable to delete operator.",
-            "error"
-        );
-    }
-}
-
-
-/* ================================================================
-   DEVICE HELPER
-================================================================ */
-
-async function getScannerDevice() {
-
-    const {
-        data,
-        error
-    } = await db
-        .from("devices")
-        .select("*")
-        .eq(
-            "device_code",
-            "ABS-001"
-        )
-        .maybeSingle();
-
-
-    if (error) {
-
-        console.error(
-            "Device lookup error:",
-            error
-        );
-
-        return null;
-    }
-
-
-    return data;
-}
-
-
-/* ================================================================
-   AUTHORIZATION
-================================================================ */
-
-function isAdmin() {
-
-    return (
-        currentProfile?.role ===
-        "admin"
-    );
-}
-
-
-function isStaff() {
-
-    return (
-        currentProfile?.role ===
-            "admin" ||
-        currentProfile?.role ===
-            "operator"
-    );
-}
-
-
-/* ================================================================
-   USER HEADER
-================================================================ */
-
-function updateUserHeader() {
-
-    const name =
-        currentProfile?.name ||
-        currentUser?.email ||
-        "User";
-
-
-    document
-        .getElementById(
-            "userName"
-        )
-        .textContent =
-            name;
-
-
-    document
-        .getElementById(
-            "userRole"
-        )
-        .textContent =
-            capitalize(
-                currentProfile?.role ||
-                "operator"
-            );
-
-
-    document
-        .getElementById(
-            "userAvatar"
-        )
-        .textContent =
-            initials(name);
-}
-
-
-/* ================================================================
-   SIDEBAR
-================================================================ */
-
-function toggleSidebar() {
-
-    document
-        .getElementById(
-            "sidebar"
-        )
-        ?.classList.toggle(
-            "open"
-        );
-}
-
-
-function closeSidebar() {
-
-    document
-        .getElementById(
-            "sidebar"
-        )
-        ?.classList.remove(
-            "open"
-        );
-}
-
-
-/* ================================================================
-   MODAL
-================================================================ */
-
-function setupModal() {
-
-    document
-        .getElementById(
-            "modalCloseButton"
-        )
-        ?.addEventListener(
-            "click",
-            closeModal
-        );
-
-
-    document
-        .getElementById(
-            "modalBackdrop"
-        )
-        ?.addEventListener(
-            "click",
-            event => {
-
-                if (
-                    event.target.id ===
-                    "modalBackdrop"
-                ) {
-
-                    closeModal();
-                }
-            }
-        );
-}
-
-
-function openModal(
-    title,
-    body,
-    kicker = "INFORMATION"
-) {
-
-    document
-        .getElementById(
-            "modalKicker"
-        )
-        .textContent =
-            kicker;
-
-
-    document
-        .getElementById(
-            "modalTitle"
-        )
-        .textContent =
-            title;
-
-
-    document
-        .getElementById(
-            "modalBody"
-        )
-        .innerHTML =
-            body;
-
-
-    document
-        .getElementById(
-            "modalBackdrop"
-        )
-        .classList.remove(
-            "hidden"
-        );
-}
-
-
-function closeModal() {
-
-    document
-        .getElementById(
-            "modalBackdrop"
-        )
-        ?.classList.add(
-            "hidden"
-        );
-}
-
-
-/* ================================================================
-   COMMON UI
-================================================================ */
-
 function renderLoading(
     text = "Loading..."
 ) {
@@ -5783,8 +8106,6 @@ function renderLoading(
 
     `;
 }
-
-
 function renderEmpty(
     title,
     description,
@@ -5811,8 +8132,6 @@ function renderEmpty(
 
     `;
 }
-
-
 function renderError(
     message
 ) {
@@ -5844,27 +8163,6 @@ function renderError(
 
     `;
 }
-
-
-function showAccessDenied() {
-
-    const content =
-        document.getElementById(
-            "mainContent"
-        );
-
-
-    content.innerHTML =
-        renderError(
-            "Only administrators can access this section."
-        );
-}
-
-
-/* ================================================================
-   UI HELPERS
-================================================================ */
-
 function statCard(
     label,
     value,
@@ -5893,8 +8191,6 @@ function statCard(
 
     `;
 }
-
-
 function scannerInfoCard(
     label,
     value,
@@ -5929,8 +8225,6 @@ function scannerInfoCard(
 
     `;
 }
-
-
 function infoItem(
     label,
     value
@@ -5955,11 +8249,449 @@ function infoItem(
 
     `;
 }
+function renderMeasurementMetrics(
+    measurement
+) {
+
+    return `
+
+        <div class="scan-result-grid">
+
+            ${resultCard(
+                "Resonance f0",
+                formatNumber(
+                    measurement.f0
+                ),
+                "Hz"
+            )}
+
+            ${resultCard(
+                "RMS",
+                formatNumber(
+                    measurement.rms
+                ),
+                ""
+            )}
+
+            ${resultCard(
+                "Bandwidth",
+                formatNumber(
+                    measurement.bandwidth
+                ),
+                "Hz"
+            )}
+
+            ${resultCard(
+                "Q-factor",
+                formatNumber(
+                    measurement.q ??
+                    measurement.q_factor
+                ),
+                ""
+            )}
+
+        </div>
+
+    `;
+}
+function resultCard(
+    label,
+    value,
+    unit
+) {
+
+    return `
+
+        <div class="result-card">
+
+            <div class="result-card-label">
+                ${escapeHtml(label)}
+            </div>
+
+            <div class="result-card-value">
+                ${escapeHtml(
+                    String(value ?? "—")
+                )}
+            </div>
+
+            <div class="result-card-unit">
+                ${escapeHtml(unit)}
+            </div>
+
+        </div>
+
+    `;
+}
+
+
+function setupModal() {
+
+    const closeButton =
+        document.getElementById("modalCloseButton");
+
+    closeButton?.addEventListener(
+        "click",
+        closeModal
+    );
+
+    const backdrop =
+        document.getElementById("modalBackdrop") ||
+        document.getElementById("modal");
+
+    backdrop?.addEventListener(
+        "click",
+        event => {
+            if (
+                event.target === backdrop ||
+                event.target.id === "modalBackdrop"
+            ) {
+                closeModal();
+            }
+        }
+    );
+}
+
+
+function openModal(
+    title,
+    body
+) {
+
+    const modal =
+        document.getElementById("modal") ||
+        document.getElementById("modalBackdrop");
+
+    const modalTitle =
+        document.getElementById("modalTitle");
+
+    const modalBody =
+        document.getElementById("modalBody");
+
+    if (!modal) {
+        return;
+    }
+
+    if (modalTitle) {
+        modalTitle.textContent =
+            title || "Information";
+    }
+
+    if (modalBody) {
+        modalBody.innerHTML =
+            body || "";
+    }
+
+    modal.classList.remove("hidden");
+}
+
+
+function closeModal() {
+
+    document
+        .getElementById("modal")
+        ?.classList.add("hidden");
+
+    document
+        .getElementById("modalBackdrop")
+        ?.classList.add("hidden");
+}
+
+
+function toggleSidebar() {
+
+    document
+        .getElementById("sidebar")
+        ?.classList.toggle("open");
+
+    document
+        .getElementById("sidebarOverlay")
+        ?.classList.toggle("open");
+}
+
+
+function closeSidebar() {
+
+    document
+        .getElementById("sidebar")
+        ?.classList.remove("open");
+
+    document
+        .getElementById("sidebarOverlay")
+        ?.classList.remove("open");
+}
+
+
+function formatMetric(
+    value,
+    unit = ""
+) {
+
+    const formatted =
+        formatNumber(value);
+
+    if (
+        formatted === "—" ||
+        !unit
+    ) {
+        return formatted;
+    }
+
+    return `${formatted} ${escapeHtml(unit)}`;
+}
+
+
+async function deleteReferenceSample(
+    sampleId,
+    sampleName = "sample"
+) {
+
+    if (!isAdmin() || !sampleId) {
+        return;
+    }
+
+    if (
+        !confirm(
+            `Delete reference sample "${sampleName}"?`
+        )
+    ) {
+        return;
+    }
+
+    try {
+
+        const { error } =
+            await db
+                .from("reference_samples")
+                .delete()
+                .eq(
+                    "id",
+                    sampleId
+                );
+
+        if (error) {
+            throw error;
+        }
+
+        toast(
+            "Reference sample deleted.",
+            "success"
+        );
+
+        await renderReferenceGroups();
+
+    } catch (error) {
+
+        console.error(
+            "Delete reference sample error:",
+            error
+        );
+
+        toast(
+            error.message ||
+            "Unable to delete reference sample.",
+            "error"
+        );
+    }
+}
+
+
+function escapeHtml(
+    value
+) {
+    return String(
+        value ?? ""
+    )
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
 
 
 /* ================================================================
-   FRIENDLY FREQUENCY RESPONSE VISUALIZATION
+   PATIENT FREQUENCY-RESPONSE GRAPH
 ================================================================ */
+
+function togglePatientMeasurementGraph(measurementId) {
+
+    if (!measurementId) {
+        return;
+    }
+
+    const panel =
+        document.getElementById(
+            `patientMeasurementGraph-${measurementId}`
+        );
+
+    const button =
+        document.getElementById(
+            `patientMeasurementGraphButton-${measurementId}`
+        );
+
+    if (!panel) {
+        return;
+    }
+
+    const isHidden =
+        panel.classList.contains("hidden");
+
+    panel.classList.toggle("hidden", !isHidden);
+
+    if (button) {
+        button.textContent =
+            isHidden
+                ? "Hide frequency-response graph"
+                : "View frequency-response graph";
+    }
+}
+
+
+function renderPatientMeasurementCard(
+    measurement,
+    index
+) {
+
+    const q =
+        measurement.q_factor ??
+        measurement.q;
+
+    const measurementId =
+        String(
+            measurement.id ||
+            `measurement-${index}`
+        );
+
+    const graphId =
+        `patientMeasurementGraph-${measurementId}`;
+
+    const buttonId =
+        `patientMeasurementGraphButton-${measurementId}`;
+
+    return `
+
+        <div
+            class="panel"
+            style="margin-bottom:16px;"
+        >
+
+            <div class="panel-header">
+
+                <div>
+
+                    <div class="section-kicker">
+                        MEASUREMENT ${index + 1}
+                    </div>
+
+                    <h3>
+                        ${formatDate(
+                            measurement.created_at
+                        )}
+                    </h3>
+
+                    <p>
+                        ${escapeHtml(
+                            measurement.bone ||
+                            "Bone not specified"
+                        )}
+                        ·
+                        ${escapeHtml(
+                            measurement.side ||
+                            "Side not specified"
+                        )}
+                    </p>
+
+                </div>
+
+                <span class="badge primary">
+                    Experimental result
+                </span>
+
+            </div>
+
+            <div class="panel-body">
+
+                ${renderMeasurementMetrics(
+                    measurement
+                )}
+
+                <div
+                    style="
+                        display:flex;
+                        justify-content:space-between;
+                        align-items:center;
+                        gap:12px;
+                        margin-top:18px;
+                        padding-top:14px;
+                        border-top:1px solid rgba(128,128,128,.18);
+                    "
+                >
+
+                    <div>
+                        <strong>
+                            Frequency-response graph
+                        </strong>
+                        <div
+                            style="
+                                margin-top:4px;
+                                font-size:13px;
+                                opacity:.72;
+                            "
+                        >
+                            Open this tab to see how the scanner
+                            responded across the measured frequencies.
+                        </div>
+                    </div>
+
+                    <button
+                        id="${buttonId}"
+                        type="button"
+                        class="button secondary"
+                        onclick="togglePatientMeasurementGraph('${escapeHtml(measurementId)}')"
+                    >
+                        View frequency-response graph
+                    </button>
+
+                </div>
+
+                <div
+                    id="${graphId}"
+                    class="hidden"
+                    style="margin-top:16px;"
+                >
+
+                    ${renderFrequencyResponseGraph(
+                        measurement
+                    )}
+
+                </div>
+
+                <div
+                    style="
+                        display:flex;
+                        justify-content:flex-end;
+                        margin-top:14px;
+                    "
+                >
+
+                    <button
+                        type="button"
+                        class="button small danger"
+                        onclick="deleteMeasurement('${escapeHtml(measurement.id || "")}', '${escapeHtml(measurement.patient_id || "")}')"
+                    >
+                        Delete measurement
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+}
+
 
 function renderFrequencyResponseGraph(measurement) {
 
@@ -6540,923 +9272,24 @@ function renderFrequencyResponseGraph(measurement) {
 
 
 /* ================================================================
-   MEASUREMENT DISPLAY
-================================================================ */
-
-function renderMeasurementMetrics(
-    measurement
-) {
-
-    return `
-
-        <div class="scan-result-grid">
-
-            ${resultCard(
-                "Resonance f0",
-                formatNumber(
-                    measurement.f0
-                ),
-                "Hz"
-            )}
-
-            ${resultCard(
-                "RMS",
-                formatNumber(
-                    measurement.rms
-                ),
-                ""
-            )}
-
-            ${resultCard(
-                "Bandwidth",
-                formatNumber(
-                    measurement.bandwidth
-                ),
-                "Hz"
-            )}
-
-            ${resultCard(
-                "Q-factor",
-                formatNumber(
-                    measurement.q ??
-                    measurement.q_factor
-                ),
-                ""
-            )}
-
-        </div>
-
-    `;
-}
-
-
-function resultCard(
-    label,
-    value,
-    unit
-) {
-
-    return `
-
-        <div class="result-card">
-
-            <div class="result-card-label">
-                ${escapeHtml(label)}
-            </div>
-
-            <div class="result-card-value">
-                ${escapeHtml(
-                    String(value ?? "—")
-                )}
-            </div>
-
-            <div class="result-card-unit">
-                ${escapeHtml(unit)}
-            </div>
-
-        </div>
-
-    `;
-}
-
-
-function renderMeasurementRow(
-    measurement
-) {
-
-    const measurementId =
-        measurement.id;
-
-    return `
-
-        <tr>
-
-            <td>
-                ${formatDate(
-                    measurement.created_at
-                )}
-            </td>
-
-            <td>
-                ${formatNumber(
-                    measurement.f0
-                )}
-                Hz
-            </td>
-
-            <td>
-                ${formatNumber(
-                    measurement.rms
-                )}
-            </td>
-
-            <td>
-                ${formatNumber(
-                    measurement.bandwidth
-                )}
-                Hz
-            </td>
-
-            <td>
-                ${formatNumber(
-                    measurement.q ??
-                    measurement.q_factor
-                )}
-            </td>
-
-            <td>
-                ${escapeHtml(
-                    measurement.bone ||
-                    "—"
-                )}
-            </td>
-
-            <td>
-                ${escapeHtml(
-                    measurement.side ||
-                    "—"
-                )}
-            </td>
-
-            <td>
-                ${measurementId
-                    ? `
-                        <button
-                            class="button small danger"
-                            type="button"
-                            onclick="deleteMeasurement('${escapeJsString(measurementId)}')"
-                        >
-                            Delete
-                        </button>
-                    `
-                    : "—"
-                }
-            </td>
-
-        </tr>
-
-    `;
-}
-
-
-async function deleteMeasurement(
-    measurementId
-) {
-
-    if (!isStaff()) {
-        return;
-    }
-
-
-    if (!measurementId) {
-        toast(
-            "Measurement ID is missing.",
-            "error"
-        );
-        return;
-    }
-
-
-    if (
-        !confirm(
-            "Delete this measurement?\n\nThis action cannot be undone."
-        )
-    ) {
-        return;
-    }
-
-
-    try {
-
-        const {
-            data,
-            error
-        } = await db.rpc(
-            "delete_measurement_record",
-            {
-                p_measurement_id:
-                    measurementId
-            }
-        );
-
-
-        if (error) {
-            throw error;
-        }
-
-
-        if (data?.success === false) {
-            throw new Error(
-                data.message ||
-                "Unable to delete measurement."
-            );
-        }
-
-
-        toast(
-            "Measurement deleted.",
-            "success"
-        );
-
-
-        if (selectedPatientId) {
-
-            await viewPatient(
-                selectedPatientId
-            );
-
-        } else {
-
-            await openMeasurementManagement();
-        }
-
-    } catch (error) {
-
-        console.error(
-            "Delete measurement error:",
-            error
-        );
-
-        toast(
-            error.message ||
-            "Unable to delete measurement.",
-            "error"
-        );
-    }
-}
-
-
-
-/* ================================================================
-   DATABASE COUNT
-================================================================ */
-
-async function countRows(
-    table
-) {
-
-    const {
-        count,
-        error
-    } = await db
-        .from(table)
-        .select(
-            "*",
-            {
-                count: "exact",
-                head: true
-            }
-        );
-
-
-    if (error) {
-
-        console.error(
-            `Count ${table} error:`,
-            error
-        );
-
-        return 0;
-    }
-
-
-    return count || 0;
-}
-
-
-/* ================================================================
-   CONNECTION
-================================================================ */
-
-function updateConnectionStatus(
-    connected
-) {
-
-    const label =
-        document.getElementById(
-            "connectionLabel"
-        );
-
-
-    if (!label) {
-        return;
-    }
-
-
-    label.textContent =
-        connected
-            ? "Connected"
-            : "Offline";
-}
-
-
-/* ================================================================
-   FORM MESSAGE
-================================================================ */
-
-function setMessage(
-    element,
-    message,
-    type = "error"
-) {
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent =
-        message || "";
-
-
-    element.className =
-        "form-message";
-
-
-    if (type) {
-
-        element.classList.add(
-            type
-        );
-    }
-}
-
-
-function clearMessage(
-    element
-) {
-
-    if (!element) {
-        return;
-    }
-
-
-    element.textContent =
-        "";
-
-    element.className =
-        "form-message";
-}
-
-
-/* ================================================================
-   BUTTON LOADING
-================================================================ */
-
-function setButtonLoading(
-    button,
-    loading,
-    text
-) {
-
-    if (!button) {
-        return;
-    }
-
-
-    if (loading) {
-
-        button.disabled =
-            true;
-
-
-        button.dataset.originalText =
-            button.textContent;
-
-
-        button.textContent =
-            text;
-
-    } else {
-
-        button.disabled =
-            false;
-
-
-        button.textContent =
-            text ||
-            button.dataset.originalText ||
-            "Submit";
-    }
-}
-
-
-/* ================================================================
-   ERROR HELPERS
-================================================================ */
-
-function readableAuthError(
-    error
-) {
-
-    const message =
-        String(
-            error?.message ||
-            ""
-        );
-
-
-    const lower =
-        message.toLowerCase();
-
-
-    if (
-        lower.includes(
-            "invalid login credentials"
-        )
-    ) {
-
-        return "Email or password is incorrect.";
-    }
-
-
-    if (
-        lower.includes(
-            "email not confirmed"
-        )
-    ) {
-
-        return "Please confirm your email address before signing in.";
-    }
-
-
-    if (
-        lower.includes(
-            "user not found"
-        )
-    ) {
-
-        return "No account was found with this email address.";
-    }
-
-
-    if (
-        lower.includes(
-            "too many requests"
-        )
-    ) {
-
-        return "Too many attempts. Please wait and try again.";
-    }
-
-
-    return (
-        message ||
-        "Unable to sign in."
-    );
-}
-
-
-function showFatalError(
-    message
-) {
-
-    document.body.innerHTML = `
-
-        <div
-            style="
-                min-height:100vh;
-                display:flex;
-                align-items:center;
-                justify-content:center;
-                padding:30px;
-                font-family:system-ui,sans-serif;
-                background:#f4f7fb;
-            "
-        >
-
-            <div
-                style="
-                    max-width:520px;
-                    padding:30px;
-                    background:#fff;
-                    border:1px solid #e5e9f0;
-                    border-radius:16px;
-                    box-shadow:0 15px 40px rgba(0,0,0,.08);
-                "
-            >
-
-                <h1>
-                    Acoustic Bone Scanner
-                </h1>
-
-                <p>
-                    The application could not start.
-                </p>
-
-                <p>
-                    ${escapeHtml(message)}
-                </p>
-
-            </div>
-
-        </div>
-
-    `;
-}
-
-
-/* ================================================================
-   TOAST
-================================================================ */
-
-function toast(
-    message,
-    type = ""
-) {
-
-    const container =
-        document.getElementById(
-            "toastContainer"
-        );
-
-
-    if (!container) {
-        return;
-    }
-
-
-    const item =
-        document.createElement(
-            "div"
-        );
-
-
-    item.className =
-        `toast ${type}`;
-
-
-    item.textContent =
-        message;
-
-
-    container.appendChild(
-        item
-    );
-
-
-    setTimeout(
-        () => {
-
-            item.remove();
-
-        },
-        4000
-    );
-}
-
-
-/* ================================================================
-   FORMATTERS
-================================================================ */
-
-function formatDate(
-    value
-) {
-
-    if (!value) {
-        return "—";
-    }
-
-
-    const date =
-        new Date(value);
-
-
-    if (
-        Number.isNaN(
-            date.getTime()
-        )
-    ) {
-
-        return "—";
-    }
-
-
-    return date.toLocaleString(
-        undefined,
-        {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit"
-        }
-    );
-}
-
-
-function formatNumber(
-    value
-) {
-
-    if (
-        value === null ||
-        value === undefined ||
-        value === ""
-    ) {
-
-        return "—";
-    }
-
-
-    const number =
-        Number(value);
-
-
-    if (
-        Number.isNaN(number)
-    ) {
-
-        return "—";
-    }
-
-
-    if (
-        Number.isInteger(number)
-    ) {
-
-        return String(number);
-    }
-
-
-    return number.toFixed(
-        3
-    ).replace(
-        /\.?0+$/,
-        ""
-    );
-}
-
-
-function numberOrNull(
-    value
-) {
-
-    if (
-        value === null ||
-        value === undefined ||
-        value === ""
-    ) {
-
-        return null;
-    }
-
-
-    const number =
-        Number(value);
-
-
-    return Number.isFinite(number)
-        ? number
-        : null;
-}
-
-
-function capitalize(
-    value
-) {
-
-    if (!value) {
-        return "";
-    }
-
-
-    return String(value)
-        .charAt(0)
-        .toUpperCase() +
-        String(value)
-            .slice(1);
-}
-
-
-function initials(
-    name
-) {
-
-    const parts =
-        String(name || "U")
-            .trim()
-            .split(/\s+/)
-            .filter(Boolean);
-
-
-    if (!parts.length) {
-        return "U";
-    }
-
-
-    return parts
-        .slice(0, 2)
-        .map(
-            part =>
-                part
-                    .charAt(0)
-                    .toUpperCase()
-        )
-        .join("");
-}
-
-
-/* ================================================================
-   PATIENT CODE
-================================================================ */
-
-function generatePatientCode() {
-
-    const chars =
-        "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-
-    function block(length) {
-
-        let output = "";
-
-        for (
-            let i = 0;
-            i < length;
-            i++
-        ) {
-
-            output +=
-                chars.charAt(
-                    Math.floor(
-                        Math.random() *
-                        chars.length
-                    )
-                );
-        }
-
-        return output;
-    }
-
-
-    return `
-        ${block(4)}-${block(4)}-${block(2)}
-    `.trim();
-}
-
-
-/* ================================================================
-   SELECT OPTION
-================================================================ */
-
-function selectOption(
-    value,
-    selected
-) {
-
-    const isSelected =
-        String(value) ===
-        String(selected);
-
-
-    return `
-
-        <option
-            value="${escapeAttribute(value)}"
-            ${isSelected ? "selected" : ""}
-        >
-            ${escapeHtml(
-                capitalize(value)
-            )}
-        </option>
-
-    `;
-}
-
-
-/* ================================================================
-   ESCAPING
-================================================================ */
-
-function escapeHtml(
-    value
-) {
-
-    return String(
-        value ??
-        ""
-    )
-        .replace(
-            /&/g,
-            "&amp;"
-        )
-        .replace(
-            /</g,
-            "&lt;"
-        )
-        .replace(
-            />/g,
-            "&gt;"
-        )
-        .replace(
-            /"/g,
-            "&quot;"
-        )
-        .replace(
-            /'/g,
-            "&#039;"
-        );
-}
-
-
-function escapeAttribute(
-    value
-) {
-
-    return escapeHtml(
-        value
-    );
-}
-
-
-function escapeJsString(
-    value
-) {
-
-    return String(
-        value ??
-        ""
-    )
-        .replace(
-            /\\/g,
-            "\\\\"
-        )
-        .replace(
-            /'/g,
-            "\\'"
-        )
-        .replace(
-            /"/g,
-            '\\"'
-        )
-        .replace(
-            /\r?\n/g,
-            "\\n"
-        );
-}
-
-
-/* ================================================================
    GLOBAL EXPORTS
 ================================================================ */
 
-/*
- * Functions called from dynamically generated HTML must be
- * exposed on window.
- */
-
-window.navigate =
-    navigate;
-
-window.openPatientForm =
-    openPatientForm;
-
-window.savePatient =
-    savePatient;
-
-window.viewPatient =
-    viewPatient;
-
-window.deletePatient =
-    deletePatient;
-
-window.startPatientScan =
-    startPatientScan;
-
-window.createScanRequest =
-    createScanRequest;
-
-window.openReferenceGroupForm =
-    openReferenceGroupForm;
-
-window.saveReferenceGroup =
-    saveReferenceGroup;
-
-window.editReferenceGroup =
-    editReferenceGroup;
-
-window.deleteReferenceGroup =
-    deleteReferenceGroup;
-
-window.openReferenceSamples =
-    openReferenceSamples;
-
-window.openReferenceSampleForm =
-    openReferenceSampleForm;
-
-window.saveReferenceSample =
-    saveReferenceSample;
-
-window.deleteReferenceSample =
-    deleteReferenceSample;
-
-window.deleteOperatorAccount =
-    deleteOperatorAccount;
-
-window.closeModal =
-    closeModal;
-
-window.toggleSidebar =
-    toggleSidebar;
+window.navigate = navigate;
+window.openPatientForm = openPatientForm;
+window.savePatient = savePatient;
+window.viewPatient = viewPatient;
+window.deletePatient = deletePatient;
+window.startPatientScan = startPatientScan;
+window.createScanRequest = createScanRequest;
+window.openReferenceGroupForm = openReferenceGroupForm;
+window.saveReferenceGroup = saveReferenceGroup;
+window.editReferenceGroup = editReferenceGroup;
+window.deleteReferenceGroup = deleteReferenceGroup;
+window.openReferenceSamples = openReferenceSamples;
+window.openReferenceSampleForm = openReferenceSampleForm;
+window.saveReferenceSample = saveReferenceSample;
+window.deleteReferenceSample = deleteReferenceSample;
+window.closeModal = closeModal;
+window.toggleSidebar = toggleSidebar;
+window.togglePatientMeasurementGraph = togglePatientMeasurementGraph;
