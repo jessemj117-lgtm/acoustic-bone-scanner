@@ -1085,6 +1085,185 @@ if (!patientId) {
 }
 
 
+function togglePatientMeasurementGraph(measurementId) {
+
+    if (!measurementId) {
+        return;
+    }
+
+    const panel =
+        document.getElementById(
+            `patientMeasurementGraph-${measurementId}`
+        );
+
+    const button =
+        document.getElementById(
+            `patientMeasurementGraphButton-${measurementId}`
+        );
+
+    if (!panel) {
+        return;
+    }
+
+    const isHidden =
+        panel.classList.contains("hidden");
+
+    panel.classList.toggle("hidden", !isHidden);
+
+    if (button) {
+        button.textContent =
+            isHidden
+                ? "Hide frequency-response graph"
+                : "View frequency-response graph";
+    }
+}
+
+
+function renderPatientMeasurementCard(
+    measurement,
+    index
+) {
+
+    const q =
+        measurement.q_factor ??
+        measurement.q;
+
+    const measurementId =
+        String(
+            measurement.id ||
+            `measurement-${index}`
+        );
+
+    const graphId =
+        `patientMeasurementGraph-${measurementId}`;
+
+    const buttonId =
+        `patientMeasurementGraphButton-${measurementId}`;
+
+    return `
+
+        <div
+            class="panel"
+            style="margin-bottom:16px;"
+        >
+
+            <div class="panel-header">
+
+                <div>
+
+                    <div class="section-kicker">
+                        MEASUREMENT ${index + 1}
+                    </div>
+
+                    <h3>
+                        ${formatDate(
+                            measurement.created_at
+                        )}
+                    </h3>
+
+                    <p>
+                        ${escapeHtml(
+                            measurement.bone ||
+                            "Bone not specified"
+                        )}
+                        ·
+                        ${escapeHtml(
+                            measurement.side ||
+                            "Side not specified"
+                        )}
+                    </p>
+
+                </div>
+
+                <span class="badge primary">
+                    Experimental result
+                </span>
+
+            </div>
+
+            <div class="panel-body">
+
+                ${renderMeasurementMetrics(
+                    measurement
+                )}
+
+                <div
+                    style="
+                        display:flex;
+                        justify-content:space-between;
+                        align-items:center;
+                        gap:12px;
+                        margin-top:18px;
+                        padding-top:14px;
+                        border-top:1px solid rgba(128,128,128,.18);
+                    "
+                >
+
+                    <div>
+                        <strong>
+                            Frequency-response graph
+                        </strong>
+                        <div
+                            style="
+                                margin-top:4px;
+                                font-size:13px;
+                                opacity:.72;
+                            "
+                        >
+                            Open this tab to see how the scanner
+                            responded across the measured frequencies.
+                        </div>
+                    </div>
+
+                    <button
+                        id="${buttonId}"
+                        type="button"
+                        class="button secondary"
+                        onclick="togglePatientMeasurementGraph('${escapeHtml(measurementId)}')"
+                    >
+                        View frequency-response graph
+                    </button>
+
+                </div>
+
+                <div
+                    id="${graphId}"
+                    class="hidden"
+                    style="margin-top:16px;"
+                >
+
+                    ${renderFrequencyResponseGraph(
+                        measurement
+                    )}
+
+                </div>
+
+                <div
+                    style="
+                        display:flex;
+                        justify-content:flex-end;
+                        margin-top:14px;
+                    "
+                >
+
+                    <button
+                        type="button"
+                        class="button small danger"
+                        onclick="deleteMeasurement('${escapeHtml(measurement.id || "")}', '${escapeHtml(measurement.patient_id || "")}')"
+                    >
+                        Delete measurement
+                    </button>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    `;
+}
+
+
 function renderPatientResults(
     patient,
     measurements
@@ -1093,12 +1272,6 @@ function renderPatientResults(
     const name =
         patient.name ||
         "Patient";
-
-
-    let latest =
-        measurements.length
-            ? measurements[0]
-            : null;
 
 
     let html = `
@@ -1128,52 +1301,6 @@ function renderPatientResults(
     `;
 
 
-    if (latest) {
-
-        html += `
-
-            <div class="panel">
-
-                <div class="panel-header">
-
-                    <div>
-
-                        <h3>
-                            Latest measurement
-                        </h3>
-
-                        <p>
-                            ${formatDate(
-                                latest.created_at
-                            )}
-                        </p>
-
-                    </div>
-
-                    <span class="badge primary">
-                        Experimental result
-                    </span>
-
-                </div>
-
-                <div class="panel-body">
-
-                    ${renderMeasurementMetrics(
-                        latest
-                    )}
-
-                    ${renderFrequencyResponseGraph(
-                        latest
-                    )}
-
-                </div>
-
-            </div>
-
-        `;
-    }
-
-
     html += `
 
         <div class="panel">
@@ -1187,66 +1314,45 @@ function renderPatientResults(
                     </h3>
 
                     <p>
-                        Your recorded scanner measurements.
+                        Each measurement has its own graph tab.
+                        Open a tab to view that scan's frequency response.
                     </p>
 
                 </div>
 
             </div>
 
-            ${
-                measurements.length
-                    ? `
-                        <div class="table-wrap">
+            <div class="panel-body">
 
-                            <table>
+                ${
+                    measurements.length
+                        ? measurements
+                            .map(
+                                renderPatientMeasurementCard
+                            )
+                            .join("")
+                        : `
+                            <div class="empty-state">
 
-                                <thead>
+                                <div class="empty-state-icon">
+                                    📊
+                                </div>
 
-                                    <tr>
-                                        <th>Date</th>
-                                        <th>f0</th>
-                                        <th>RMS</th>
-                                        <th>Bandwidth</th>
-                                        <th>Q</th>
-                                    </tr>
+                                <h3>
+                                    No measurements yet
+                                </h3>
 
-                                </thead>
+                                <p>
+                                    Your measurement results
+                                    will appear here after a scan
+                                    has been completed.
+                                </p>
 
-                                <tbody>
-
-                                    ${measurements
-                                        .map(
-                                            renderMeasurementRow
-                                        )
-                                        .join("")}
-
-                                </tbody>
-
-                            </table>
-
-                        </div>
-                    `
-                    : `
-                        <div class="empty-state">
-
-                            <div class="empty-state-icon">
-                                📊
                             </div>
+                        `
+                }
 
-                            <h3>
-                                No measurements yet
-                            </h3>
-
-                            <p>
-                                Your measurement results
-                                will appear here after a scan
-                                has been completed.
-                            </p>
-
-                        </div>
-                    `
-            }
+            </div>
 
         </div>
 
@@ -1272,6 +1378,7 @@ function renderPatientResults(
 
     return html;
 }
+
 
 
 /* ================================================================
