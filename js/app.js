@@ -3445,14 +3445,26 @@ function renderMeasurementRow(
                     "
                 >
 
-                    <button
-                        id="${buttonId}"
-                        class="button small secondary"
-                        type="button"
-                        onclick="toggleStaffMeasurementGraph('${escapeJsString(measurementId)}')"
+                    <div
+                        style="
+                            padding:10px 12px;
+                            border:1px solid rgba(59,130,246,.25);
+                            border-radius:10px;
+                            background:rgba(59,130,246,.06);
+                        "
                     >
-                        View frequency-response graph
-                    </button>
+                        <strong style="display:block;margin-bottom:6px;">
+                            Frequency response
+                        </strong>
+                        <button
+                            id="${buttonId}"
+                            class="button small secondary"
+                            type="button"
+                            onclick="toggleStaffMeasurementGraph('${escapeJsString(measurementId)}')"
+                        >
+                            View frequency-response graph
+                        </button>
+                    </div>
 
                     <div
                         id="${graphId}"
