@@ -154,12 +154,26 @@ function bindStaticEvents() {
         );
 
 
-    document
-        .getElementById("patientPortalLogout")
-        ?.addEventListener(
+    const patientPortalLogout =
+        document.getElementById("patientPortalLogout");
+
+    if (patientPortalLogout) {
+        patientPortalLogout.textContent = "Sign out";
+        patientPortalLogout.setAttribute(
+            "aria-label",
+            "Sign out of patient portal"
+        );
+        patientPortalLogout.title =
+            "Sign out of patient portal";
+        patientPortalLogout.style.display = "inline-flex";
+        patientPortalLogout.style.alignItems = "center";
+        patientPortalLogout.style.justifyContent = "center";
+        patientPortalLogout.style.whiteSpace = "nowrap";
+        patientPortalLogout.addEventListener(
             "click",
             showStaffLogin
         );
+    }
 
 
     document
@@ -2407,7 +2421,32 @@ async function renderPatientRecord(
                         type="button"
                         onclick="submitPatientScanRequest('${escapeJsString(patient.id)}')"
                     >
-                        Start Scan
+                        Start 1 Scan
+                    </button>
+
+                    <label
+                        class="form-label"
+                        style="display:flex;align-items:center;gap:8px;margin:0;"
+                    >
+                        <span>Number of measurements</span>
+                        <select
+                            id="patientBatchMeasurementCount"
+                            style="min-width:80px;"
+                        >
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5" selected>5</option>
+                            <option value="6">6</option>
+                        </select>
+                    </label>
+
+                    <button
+                        class="button secondary"
+                        type="button"
+                        onclick="submitPatientBatchScanRequests('${escapeJsString(patient.id)}')"
+                    >
+                        Start Multiple Measurements
                     </button>
 
                     <button
@@ -2917,6 +2956,143 @@ async function submitPatientScanRequest(
         toast(
             error.message ||
             "Unable to start scan.",
+            "error"
+        );
+    }
+}
+
+
+/* ================================================================
+   BATCH PATIENT SCAN REQUESTS
+================================================================ */
+
+async function submitPatientBatchScanRequests(
+    patientId
+) {
+
+    if (!patientId) {
+        toast(
+            "Patient ID is missing.",
+            "error"
+        );
+        return;
+    }
+
+    savePatientScanSelection(patientId);
+
+    const bone =
+        document.getElementById("patientScanBone")?.value ||
+        "radius";
+
+    const side =
+        document.getElementById("patientScanSide")?.value ||
+        "left";
+
+    const count = Math.min(
+        6,
+        Math.max(2, Number(
+            document.getElementById("patientBatchMeasurementCount")?.value ||
+            5
+        ))
+    );
+
+    const status =
+        document.getElementById("patientScanRequestStatus");
+
+    try {
+        if (status) {
+            status.innerHTML = `
+                <div class="info-message">
+                    Checking scanner status before queuing ${count} measurements...
+                </div>
+            `;
+        }
+
+        const device = await getScannerDevice();
+
+        if (!device) {
+            throw new Error("Scanner ABS-001 could not be found.");
+        }
+
+        if (!isScannerOnline(device)) {
+            throw new Error(
+                "ABS-001 is offline. Turn on the scanner and connect it to Wi-Fi before starting measurements."
+            );
+        }
+
+        const now = Date.now();
+        const requestedAt = new Date().toISOString();
+
+        const requests = Array.from(
+            { length: count },
+            (_, index) => ({
+                patient_id: patientId,
+                operator_id:
+                    currentProfile?.id ||
+                    currentUser?.id ||
+                    null,
+                device_id: device.id,
+                scan_type: "patient",
+                status: "pending",
+                bone,
+                side,
+                requested_at: new Date(
+                    now + index
+                ).toISOString()
+            })
+        );
+
+        const { data, error } = await db
+            .from("scan_requests")
+            .insert(requests)
+            .select("id,status,bone,side");
+
+        if (error) {
+            throw error;
+        }
+
+        const queuedCount =
+            Array.isArray(data) ? data.length : count;
+
+        if (status) {
+            status.innerHTML = `
+                <div class="success-message">
+                    <strong>${queuedCount} measurements queued.</strong>
+                    <br>
+                    ${escapeHtml(capitalize(bone))} / ${escapeHtml(capitalize(side))}
+                    <br>
+                    The scanner will perform them one after another automatically.
+                    <br>
+                    Keep ABS-001 connected to Wi-Fi until the queue is finished.
+                </div>
+            `;
+        }
+
+        toast(
+            `${queuedCount} measurements queued for ABS-001.`,
+            "success"
+        );
+
+    } catch (error) {
+        console.error(
+            "Batch patient scan request error:",
+            error
+        );
+
+        if (status) {
+            status.innerHTML = `
+                <div class="error-message">
+                    ${escapeHtml(
+                        error.message ||
+                        "Unable to queue multiple measurements."
+                    )}
+                </div>
+            `;
+        }
+
+        toast(
+            error.message ||
+            "Unable to queue multiple measurements.",
             "error"
         );
     }
