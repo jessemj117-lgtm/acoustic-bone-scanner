@@ -5011,6 +5011,264 @@ async function renderReferenceGroups() {
     }
 }
 
+async function renderReferences() {
+
+    if (!isAdmin()) {
+
+        showAccessDenied();
+
+        return;
+    }
+
+
+    const {
+        data: groups,
+        error
+    } = await db
+        .from("reference_groups")
+        .select("*")
+        .order(
+            "age_min",
+            {
+                ascending: true
+            }
+        );
+
+
+    if (error) {
+        throw error;
+    }
+
+
+    referenceGroupsCache =
+        groups || [];
+
+
+    const sampleCounts =
+        {};
+
+
+    for (
+        const group of referenceGroupsCache
+    ) {
+
+        const {
+            count
+        } = await db
+            .from("reference_samples")
+            .select(
+                "*",
+                {
+                    count: "exact",
+                    head: true
+                }
+            )
+            .eq(
+                "reference_group_id",
+                group.id
+            );
+
+
+        sampleCounts[group.id] =
+            count || 0;
+    }
+
+
+    const content =
+        document.getElementById(
+            "mainContent"
+        );
+
+
+    content.innerHTML = `
+
+        <div class="page-header">
+
+            <div>
+
+                <div class="section-kicker">
+                    RESEARCH DATABASE
+                </div>
+
+                <h2>
+                    Reference Groups
+                </h2>
+
+                <p>
+                    Define population reference groups by
+                    age, sex, bone and side.
+                </p>
+
+            </div>
+
+            <div class="actions">
+
+                <button
+                    class="button primary"
+                    onclick="openReferenceGroupForm()"
+                >
+                    + Add reference group
+                </button>
+
+            </div>
+
+        </div>
+
+
+        <section class="panel">
+
+            <div class="panel-header">
+
+                <div>
+
+                    <h3>
+                        Reference groups
+                    </h3>
+
+                    <p>
+                        Reference groups remain separate
+                        from individual scanner/device baselines.
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            ${
+                referenceGroupsCache.length
+                    ? `
+                        <div class="panel-body">
+
+                            <div class="reference-group-grid">
+
+                                ${referenceGroupsCache
+                                    .map(
+                                        group =>
+                                            renderReferenceGroupCard(
+                                                group,
+                                                sampleCounts[
+                                                    group.id
+                                                ] || 0
+                                            )
+                                    )
+                                    .join("")}
+
+                            </div>
+
+                        </div>
+                    `
+                    : renderEmpty(
+                        "No reference groups",
+                        "Create the first reference group for the research dataset.",
+                        "🧬"
+                    )
+            }
+
+        </section>
+
+    `;
+}
+
+
+function renderReferenceGroupCard(
+    group,
+    sampleCount
+) {
+
+    return `
+
+        <article
+            class="reference-group-card"
+        >
+
+            <div class="section-kicker">
+                ${escapeHtml(
+                    group.sex ||
+                    ""
+                ).toUpperCase()}
+            </div>
+
+            <h3>
+                ${escapeHtml(
+                    group.name
+                )}
+            </h3>
+
+
+            <div class="reference-group-meta">
+
+                <span class="badge primary">
+                    Age ${group.age_min}–${group.age_max}
+                </span>
+
+                <span class="badge neutral">
+                    ${capitalize(
+                        group.bone
+                    )}
+                </span>
+
+                <span class="badge neutral">
+                    ${capitalize(
+                        group.side
+                    )}
+                </span>
+
+                <span class="badge success">
+                    ${sampleCount}
+                    sample${sampleCount === 1 ? "" : "s"}
+                </span>
+
+            </div>
+
+
+            <div class="reference-group-description">
+
+                ${escapeHtml(
+                    group.description ||
+                    "No description."
+                )}
+
+            </div>
+
+
+            <div class="reference-group-footer">
+
+                <button
+                    class="button small secondary"
+                    onclick="openReferenceSamples('${group.id}')"
+                >
+                    View samples
+                </button>
+
+                <div class="actions">
+
+                    <button
+                        class="button small secondary"
+                        onclick="editReferenceGroup('${group.id}')"
+                    >
+                        Edit
+                    </button>
+
+                    <button
+                        class="button small danger"
+                        onclick="deleteReferenceGroup('${group.id}')"
+                    >
+                        Delete
+                    </button>
+
+                </div>
+
+            </div>
+
+        </article>
+
+    `;
+}
+
+
+
+
 function openReferenceGroupForm() {
 
     openModal(
@@ -7142,10 +7400,17 @@ async function openReferenceSamples(
                 </button>
 
                 <button
-                    class="button primary"
+                    class="button secondary"
                     onclick="openReferenceSampleForm('${group.id}')"
                 >
-                    Add sample
+                    Add manual sample
+                </button>
+
+                <button
+                    class="button primary"
+                    onclick="openReferenceScannerForm('${group.id}')"
+                >
+                    Measure with scanner
                 </button>
 
             </div>
@@ -7372,6 +7637,135 @@ function renderReferenceSampleRow(
         </tr>
 
     `;
+}
+
+async function openReferenceScannerForm(groupId) {
+    const group = referenceGroupsCache.find(g => g.id === groupId);
+    if (!group) { toast("Reference group not found.", "error"); return; }
+    try {
+        const { data: patients, error } = await db.from("patients")
+            .select("id,name,patient_code,age,sex")
+            .is("deleted_at", null).order("name", { ascending: true });
+        if (error) throw error;
+        const patientOptions = (patients || []).map(patient => `
+            <option value="${escapeAttribute(patient.id)}">
+                ${escapeHtml(patient.name || patient.patient_code || patient.id)}
+                ${patient.patient_code ? ` — ${escapeHtml(patient.patient_code)}` : ""}
+            </option>
+        `).join("");
+        openModal("Measure reference sample with scanner", `
+            <form onsubmit="startReferenceScannerMeasurement(event, '${groupId}')">
+                <div class="info-message" style="margin-bottom:16px;">
+                    This sends a real measurement request to ABS-001. The completed acoustic measurement will be stored in
+                    <strong>${escapeHtml(group.name)}</strong> as a scanner reference sample.
+                </div>
+                <div class="form-grid">
+                    <div class="full-width">
+                        <label class="form-label">Reference subject</label>
+                        <select name="patient_id" required>
+                            <option value="">Select the subject being measured</option>
+                            ${patientOptions}
+                        </select>
+                        <small class="form-help">
+                            The current scanner workflow requires a patient record for each scan request. The acoustic values are copied into the reference group after completion.
+                        </small>
+                    </div>
+                    <div class="full-width">
+                        <label class="form-label">Sample name</label>
+                        <input name="name" required value="${escapeAttribute(group.name + " — Scanner sample")}" placeholder="Reference scanner sample 01">
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="button secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="button primary" ${patientOptions ? "" : "disabled"}>Start scanner measurement</button>
+                </div>
+            </form>
+        `);
+    } catch (error) {
+        console.error("Open reference scanner error:", error);
+        toast(error.message || "Unable to open scanner measurement.", "error");
+    }
+}
+
+async function startReferenceScannerMeasurement(event, groupId) {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    const patientId = String(data.patient_id || "").trim();
+    const sampleName = String(data.name || "").trim();
+    if (!patientId || !sampleName) { toast("Please select a subject and enter a sample name.", "error"); return; }
+    const group = referenceGroupsCache.find(g => g.id === groupId);
+    if (!group) { toast("Reference group not found.", "error"); return; }
+    try {
+        const device = await getScannerDevice();
+        if (!device) throw new Error("Scanner device ABS-001 was not found.");
+        if (!isScannerOnline(device)) throw new Error("ABS-001 is offline. Turn on the scanner and connect it to Wi-Fi before starting the measurement.");
+        const { data: request, error } = await db.from("scan_requests").insert({
+            patient_id: patientId,
+            operator_id: currentProfile?.id || currentUser?.id || null,
+            device_id: device.id,
+            scan_type: "reference",
+            status: "pending",
+            requested_at: new Date().toISOString(),
+            bone: group.bone || null,
+            side: group.side || null
+        }).select("*").single();
+        if (error) throw error;
+        if (!request?.id) throw new Error("Reference scan request was not created.");
+        closeModal();
+        toast("Reference measurement sent to ABS-001.", "success");
+        await monitorReferenceScannerMeasurement(groupId, request.id, sampleName);
+    } catch (error) {
+        console.error("Reference scanner measurement error:", error);
+        toast(error.message || "Unable to start reference measurement.", "error");
+    }
+}
+
+async function monitorReferenceScannerMeasurement(groupId, requestId, sampleName) {
+    let attempts = 0;
+    const maxAttempts = 300;
+    const poll = async () => {
+        attempts++;
+        try {
+            const { data: request, error: requestError } = await db.from("scan_requests")
+                .select("id,status,error_message").eq("id", requestId).maybeSingle();
+            if (requestError) throw requestError;
+            if (!request) throw new Error("Reference scan request could not be found.");
+            if (request.status === "completed") {
+                const { data: measurement, error: measurementError } = await db.from("measurements")
+                    .select("*").eq("scan_request_id", requestId)
+                    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+                if (measurementError) throw measurementError;
+                if (!measurement) throw new Error("The scanner completed, but no measurement record was found.");
+                const { error: sampleError } = await db.from("reference_samples").insert({
+                    reference_group_id: groupId,
+                    name: sampleName,
+                    description: "Measured with ABS-001 scanner.",
+                    material: "",
+                    f0: numberOrNull(measurement.f0),
+                    rms: numberOrNull(measurement.rms),
+                    bandwidth: numberOrNull(measurement.bandwidth),
+                    q: numberOrNull(measurement.q_factor ?? measurement.q),
+                    source_type: "scanner",
+                    device_id: measurement.device_id || null,
+                    created_by: currentUser?.id || null,
+                    notes: "Imported automatically from completed scanner measurement."
+                });
+                if (sampleError) throw sampleError;
+                toast("Scanner measurement added to the reference group.", "success");
+                await openReferenceSamples(groupId);
+                return;
+            }
+            if (request.status === "error" || request.status === "cancelled") {
+                throw new Error(request.error_message || `Reference scan ${request.status}.`);
+            }
+            if (attempts < maxAttempts) setTimeout(poll, 3000);
+            else toast("Reference measurement is still processing. Refresh the reference group later to see the result.", "error");
+        } catch (error) {
+            console.error("Reference scanner polling error:", error);
+            toast(error.message || "Unable to finish reference measurement.", "error");
+        }
+    };
+    await poll();
 }
 
 async function openReferenceSampleForm(
@@ -9822,6 +10216,8 @@ window.deletePatient = deletePatient;
 window.startPatientScan = startPatientScan;
 window.createScanRequest = createScanRequest;
 window.openReferenceGroupForm = openReferenceGroupForm;
+window.openReferenceScannerForm = openReferenceScannerForm;
+window.startReferenceScannerMeasurement = startReferenceScannerMeasurement;
 window.saveReferenceGroup = saveReferenceGroup;
 window.editReferenceGroup = editReferenceGroup;
 window.deleteReferenceGroup = deleteReferenceGroup;
