@@ -4762,21 +4762,19 @@ async function renderScannerRequests() {
 async function renderReferenceGroups() {
 
     if (!isAdmin()) {
+        showAccessDenied();
         return;
     }
-
 
     const content =
         document.getElementById(
             "mainContent"
         );
 
-
     content.innerHTML =
         renderLoading(
             "Loading reference groups..."
         );
-
 
     try {
 
@@ -4793,15 +4791,44 @@ async function renderReferenceGroups() {
                 }
             );
 
-
         if (error) {
             throw error;
         }
 
-
         referenceGroupsCache =
             data || [];
 
+        const sampleCounts = {};
+
+        for (const group of referenceGroupsCache) {
+
+            const {
+                count,
+                error: countError
+            } = await db
+                .from("reference_samples")
+                .select(
+                    "*",
+                    {
+                        count: "exact",
+                        head: true
+                    }
+                )
+                .eq(
+                    "reference_group_id",
+                    group.id
+                );
+
+            if (countError) {
+                console.warn(
+                    "Reference sample count error:",
+                    countError
+                );
+            }
+
+            sampleCounts[group.id] =
+                count || 0;
+        }
 
         content.innerHTML = `
 
@@ -4824,8 +4851,19 @@ async function renderReferenceGroups() {
 
                 </div>
 
-            </div>
+                <div class="actions">
 
+                    <button
+                        class="button primary"
+                        type="button"
+                        onclick="openReferenceGroupForm()"
+                    >
+                        + Add Group
+                    </button>
+
+                </div>
+
+            </div>
 
             <section class="panel">
 
@@ -4838,11 +4876,8 @@ async function renderReferenceGroups() {
                         </h3>
 
                         <p>
-                            ${
-                                referenceGroupsCache.length
-                            }
-                            configured group
-                            ${
+                            ${referenceGroupsCache.length}
+                            configured group${
                                 referenceGroupsCache.length === 1
                                     ? ""
                                     : "s"
@@ -4851,121 +4886,28 @@ async function renderReferenceGroups() {
 
                     </div>
 
-                    <button
-                        class="button primary"
-                        type="button"
-                        onclick="openReferenceGroupForm()"
-                    >
-                        + Add Group
-                    </button>
-
                 </div>
-
 
                 ${
                     referenceGroupsCache.length
                         ? `
+                            <div class="panel-body">
 
-                            <div class="table-wrap">
+                                <div class="reference-group-grid">
 
-                                <table>
-
-                                    <thead>
-
-                                        <tr>
-
-                                            <th>
-                                                Name
-                                            </th>
-
-                                            <th>
-                                                Age
-                                            </th>
-
-                                            <th>
-                                                Sex
-                                            </th>
-
-                                            <th>
-                                                Bone
-                                            </th>
-
-                                            <th>
-                                                Side
-                                            </th>
-
-                                            <th>
-                                                Version
-                                            </th>
-
-                                        </tr>
-
-                                    </thead>
-
-                                    <tbody>
-
-                                        ${
-                                            referenceGroupsCache
-                                                .map(
-                                                    group =>
-                                                        `
-
-                                                            <tr>
-
-                                                                <td>
-                                                                    ${escapeHtml(
-                                                                        group.name ||
-                                                                        "—"
-                                                                    )}
-                                                                </td>
-
-                                                                <td>
-                                                                    ${escapeHtml(
-                                                                        `${group.age_min ?? "—"}–${group.age_max ?? "—"}`
-                                                                    )}
-                                                                </td>
-
-                                                                <td>
-                                                                    ${escapeHtml(
-                                                                        group.sex ||
-                                                                        "—"
-                                                                    )}
-                                                                </td>
-
-                                                                <td>
-                                                                    ${escapeHtml(
-                                                                        group.bone ||
-                                                                        "—"
-                                                                    )}
-                                                                </td>
-
-                                                                <td>
-                                                                    ${escapeHtml(
-                                                                        group.side ||
-                                                                        "—"
-                                                                    )}
-                                                                </td>
-
-                                                                <td>
-                                                                    ${escapeHtml(
-                                                                        group.version ||
-                                                                        "—"
-                                                                    )}
-                                                                </td>
-
-                                                            </tr>
-
-                                                        `
+                                    ${referenceGroupsCache
+                                        .map(
+                                            group =>
+                                                renderReferenceGroupCard(
+                                                    group,
+                                                    sampleCounts[group.id] || 0
                                                 )
-                                                .join("")
-                                        }
+                                        )
+                                        .join("")}
 
-                                    </tbody>
-
-                                </table>
+                                </div>
 
                             </div>
-
                         `
                         : renderEmpty(
                             "No reference groups",
@@ -4984,7 +4926,6 @@ async function renderReferenceGroups() {
             "Reference groups error:",
             error
         );
-
 
         content.innerHTML = `
 
@@ -5010,7 +4951,6 @@ async function renderReferenceGroups() {
         `;
     }
 }
-
 async function renderReferences() {
 
     if (!isAdmin()) {
