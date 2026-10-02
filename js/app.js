@@ -3242,6 +3242,17 @@ async function submitPatientBatchScanRequests(
             "success"
         );
 
+        const requestIds = (data || [])
+            .map(request => request?.id)
+            .filter(Boolean);
+
+        if (requestIds.length) {
+            startPatientBatchScanPolling(
+                patientId,
+                requestIds
+            );
+        }
+
     } catch (error) {
         console.error(
             "Batch patient scan request error:",
@@ -3437,6 +3448,158 @@ function startPatientScanPolling(
                 poll,
                 intervalMs
             );
+    };
+
+    poll();
+}
+
+
+/* ================================================================
+   BATCH PATIENT SCAN POLLING
+================================================================ */
+function startPatientBatchScanPolling(
+    patientId,
+    requestIds
+) {
+
+    if (!patientId || !Array.isArray(requestIds) || !requestIds.length) {
+        return;
+    }
+
+    if (scanPollTimer) {
+        clearTimeout(scanPollTimer);
+        scanPollTimer = null;
+    }
+
+    let attempts = 0;
+    const intervalMs = 3000;
+    const maxAttempts = 300;
+    const completedIds = new Set();
+    const terminalIds = new Set();
+
+    const poll = async () => {
+
+        attempts++;
+
+        try {
+            const {
+                data,
+                error
+            } = await db
+                .from("scan_requests")
+                .select("id,status,error_message")
+                .in("id", requestIds);
+
+            if (error) {
+                throw error;
+            }
+
+            const rows = Array.isArray(data) ? data : [];
+            let newlyCompleted = false;
+
+            for (const row of rows) {
+
+                if (!row?.id) {
+                    continue;
+                }
+
+                if (row.status === "completed") {
+                    terminalIds.add(row.id);
+
+                    if (!completedIds.has(row.id)) {
+                        completedIds.add(row.id);
+                        newlyCompleted = true;
+                    }
+                } else if (
+                    row.status === "failed" ||
+                    row.status === "cancelled"
+                ) {
+                    terminalIds.add(row.id);
+                }
+            }
+
+            const status =
+                document.getElementById(
+                    "patientScanRequestStatus"
+                );
+
+            if (newlyCompleted) {
+                if (status) {
+                    status.innerHTML = `
+                        <div class="success-message">
+                            <strong>Measurement ${completedIds.size} of ${requestIds.length} completed.</strong>
+                            <br>
+                            Loading updated patient measurements...
+                        </div>
+                    `;
+                }
+
+                await openPatientRecord(
+                    patientId,
+                    false
+                );
+            }
+
+            if (terminalIds.size >= requestIds.length) {
+                scanPollTimer = null;
+
+                const failedCount = rows.filter(row =>
+                    row?.status === "failed" ||
+                    row?.status === "cancelled"
+                ).length;
+
+                toast(
+                    failedCount
+                        ? `${completedIds.size} of ${requestIds.length} measurements completed.`
+                        : `All ${requestIds.length} measurements completed.`,
+                    failedCount ? "error" : "success"
+                );
+
+                return;
+            }
+
+            if (status && !newlyCompleted) {
+                status.innerHTML = `
+                    <div class="info-message">
+                        Scanner status: <strong>${completedIds.size} of ${requestIds.length} measurements completed.</strong>
+                        <br>
+                        Remaining measurements are being processed automatically.
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error(
+                "Batch patient scan polling error:",
+                error
+            );
+        }
+
+        if (attempts >= maxAttempts) {
+            scanPollTimer = null;
+
+            const status =
+                document.getElementById(
+                    "patientScanRequestStatus"
+                );
+
+            if (status) {
+                status.innerHTML = `
+                    <div class="warning-message">
+                        ${completedIds.size} of ${requestIds.length} measurements have completed.
+                        The remaining scans are still processing.
+                        Refresh later if needed.
+                    </div>
+                `;
+            }
+
+            return;
+        }
+
+        scanPollTimer = setTimeout(
+            poll,
+            intervalMs
+        );
     };
 
     poll();
