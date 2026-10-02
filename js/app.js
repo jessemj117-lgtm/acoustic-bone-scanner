@@ -5234,20 +5234,34 @@ function renderReferenceGroupCard(
 
             <div class="reference-group-footer">
 
-                <button
-                    class="button small secondary"
-                    onclick="openReferenceSamples('${group.id}')"
-                >
-                    View samples
-                </button>
+                <div class="actions" style="display:flex;flex-wrap:wrap;gap:8px;">
 
-                <div class="actions">
+                    <button
+                        class="button small secondary"
+                        onclick="openReferenceSamples('${group.id}')"
+                    >
+                        View samples
+                    </button>
+
+                    <button
+                        class="button small secondary"
+                        onclick="openReferenceSampleForm('${group.id}')"
+                    >
+                        Add manual sample
+                    </button>
+
+                    <button
+                        class="button small primary"
+                        onclick="openReferenceScannerForm('${group.id}')"
+                    >
+                        Measure with scanner
+                    </button>
 
                     <button
                         class="button small secondary"
                         onclick="editReferenceGroup('${group.id}')"
                     >
-                        Edit
+                        Edit group
                     </button>
 
                     <button
