@@ -2446,14 +2446,6 @@ async function renderPatientRecord(
 
                 <div class="button-row">
 
-                    <button
-                        class="button primary"
-                        type="button"
-                        onclick="submitPatientScanRequest('${escapeJsString(patient.id)}')"
-                    >
-                        Start 1 Scan
-                    </button>
-
                     <label
                         class="form-label"
                         style="display:flex;align-items:center;gap:8px;margin:0;"
@@ -2463,10 +2455,11 @@ async function renderPatientRecord(
                             id="patientBatchMeasurementCount"
                             style="min-width:80px;"
                         >
+                            <option value="1" selected>1</option>
                             <option value="2">2</option>
                             <option value="3">3</option>
                             <option value="4">4</option>
-                            <option value="5" selected>5</option>
+                            <option value="5">5</option>
                             <option value="6">6</option>
                         </select>
                     </label>
@@ -2474,9 +2467,9 @@ async function renderPatientRecord(
                     <button
                         class="button primary"
                         type="button"
-                        onclick="submitPatientBatchScanRequests('${escapeJsString(patient.id)}')"
+                        onclick="submitPatientScanRequests('${escapeJsString(patient.id)}')"
                     >
-                        Start Multiple Measurements
+                        Start Scan
                     </button>
 
                     <button
@@ -2982,6 +2975,152 @@ async function submitPatientScanRequest(
             `;
         }
 
+
+        toast(
+            error.message ||
+            "Unable to start scan.",
+            "error"
+        );
+    }
+}
+
+
+/* ================================================================
+   UNIFIED PATIENT SCAN REQUESTS
+================================================================ */
+
+async function submitPatientScanRequests(
+    patientId
+) {
+
+    if (!patientId) {
+        toast(
+            "Patient ID is missing.",
+            "error"
+        );
+        return;
+    }
+
+    savePatientScanSelection(patientId);
+
+    const bone =
+        document.getElementById("patientScanBone")?.value ||
+        "radius";
+
+    const side =
+        document.getElementById("patientScanSide")?.value ||
+        "left";
+
+    const count = Math.min(
+        6,
+        Math.max(1, Number(
+            document.getElementById("patientBatchMeasurementCount")?.value ||
+            1
+        ))
+    );
+
+    const status =
+        document.getElementById("patientScanRequestStatus");
+
+    try {
+        if (status) {
+            status.innerHTML = `
+                <div class="info-message">
+                    Checking scanner status before starting ${count} measurement${count === 1 ? "" : "s"}...
+                </div>
+            `;
+        }
+
+        const device = await getScannerDevice();
+
+        if (!device) {
+            throw new Error("Scanner ABS-001 could not be found.");
+        }
+
+        if (!isScannerOnline(device)) {
+            throw new Error(
+                "ABS-001 is offline. Turn on the scanner and connect it to Wi-Fi before starting the scan."
+            );
+        }
+
+        const now = Date.now();
+        const requests = Array.from(
+            { length: count },
+            (_, index) => ({
+                patient_id: patientId,
+                operator_id:
+                    currentProfile?.id ||
+                    currentUser?.id ||
+                    null,
+                device_id: device.id,
+                scan_type: "patient",
+                status: "pending",
+                bone,
+                side,
+                requested_at: new Date(
+                    now + index
+                ).toISOString()
+            })
+        );
+
+        const { data, error } = await db
+            .from("scan_requests")
+            .insert(requests)
+            .select("id,status,bone,side");
+
+        if (error) {
+            throw error;
+        }
+
+        const queuedCount =
+            Array.isArray(data) ? data.length : count;
+
+        if (status) {
+            status.innerHTML = `
+                <div class="success-message">
+                    <strong>${queuedCount} measurement${queuedCount === 1 ? "" : "s"} started/queued.</strong>
+                    <br>
+                    ${escapeHtml(capitalize(bone))} / ${escapeHtml(capitalize(side))}
+                    <br>
+                    ${queuedCount === 1
+                        ? "Waiting for ABS-001 to complete the scan."
+                        : "The scanner will perform them one after another automatically."}
+                    <br>
+                    Keep ABS-001 connected to Wi-Fi until the measurement${queuedCount === 1 ? " is" : "s are"} finished.
+                </div>
+            `;
+        }
+
+        toast(
+            queuedCount === 1
+                ? "1 measurement queued for ABS-001."
+                : `${queuedCount} measurements queued for ABS-001.`,
+            "success"
+        );
+
+        if (queuedCount === 1 && data?.[0]?.id) {
+            startPatientScanPolling(
+                patientId,
+                data[0].id
+            );
+        }
+
+    } catch (error) {
+        console.error(
+            "Patient scan request error:",
+            error
+        );
+
+        if (status) {
+            status.innerHTML = `
+                <div class="error-message">
+                    ${escapeHtml(
+                        error.message ||
+                        "Unable to start scan."
+                    )}
+                </div>
+            `;
+        }
 
         toast(
             error.message ||
@@ -4149,23 +4288,35 @@ function isScannerOnline(
    AUTHORIZATION
 ================================================================ */
 
+function getCurrentRole() {
+
+    const metadataRole =
+        currentUser?.user_metadata?.role ||
+        currentUser?.app_metadata?.role;
+
+    if (metadataRole === "admin" || metadataRole === "operator") {
+        return metadataRole;
+    }
+
+    if (currentProfile?.role === "admin" || currentProfile?.role === "operator") {
+        return currentProfile.role;
+    }
+
+    return "operator";
+}
+
+
 function isAdmin() {
 
-    return (
-        currentProfile?.role ===
-        "admin"
-    );
+    return getCurrentRole() === "admin";
 }
 
 
 function isStaff() {
 
-    return (
-        currentProfile?.role ===
-            "admin" ||
-        currentProfile?.role ===
-            "operator"
-    );
+    const role = getCurrentRole();
+
+    return role === "admin" || role === "operator";
 }
 
 
@@ -4182,13 +4333,7 @@ function updateUserHeader() {
 
 
     const role =
-        currentUser?.user_metadata?.role === "admin"
-            ? "admin"
-            : (
-                currentProfile?.role ||
-                currentUser?.user_metadata?.role ||
-                "operator"
-            );
+        getCurrentRole();
 
 
     const nameElement =
