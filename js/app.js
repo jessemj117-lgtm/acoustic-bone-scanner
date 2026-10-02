@@ -9726,24 +9726,6 @@ function renderPatientMeasurementCard(
 
                 </div>
 
-                <div
-                    style="
-                        display:flex;
-                        justify-content:flex-end;
-                        margin-top:14px;
-                    "
-                >
-
-                    <button
-                        type="button"
-                        class="button small danger"
-                        onclick="deleteMeasurement('${escapeHtml(measurement.id || "")}', '${escapeHtml(measurement.patient_id || "")}')"
-                    >
-                        Delete measurement
-                    </button>
-
-                </div>
-
             </div>
 
         </div>
