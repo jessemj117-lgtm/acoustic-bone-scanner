@@ -3098,10 +3098,19 @@ async function submitPatientScanRequests(
             "success"
         );
 
-        if (queuedCount === 1 && data?.[0]?.id) {
+        const requestIds = (data || [])
+            .map(request => request?.id)
+            .filter(Boolean);
+
+        if (requestIds.length === 1) {
             startPatientScanPolling(
                 patientId,
-                data[0].id
+                requestIds[0]
+            );
+        } else if (requestIds.length > 1) {
+            startPatientBatchScanPolling(
+                patientId,
+                requestIds
             );
         }
 
