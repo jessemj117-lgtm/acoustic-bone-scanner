@@ -1851,6 +1851,32 @@ async function renderPatients() {
         data || [];
 
 
+    const {
+        data: measurementRows,
+        error: measurementError
+    } = await db
+        .from("measurements")
+        .select("patient_id");
+
+
+    if (measurementError) {
+        throw measurementError;
+    }
+
+
+    const measurementCounts =
+        (measurementRows || []).reduce(
+            (counts, measurement) => {
+                if (measurement.patient_id) {
+                    counts[measurement.patient_id] =
+                        (counts[measurement.patient_id] || 0) + 1;
+                }
+                return counts;
+            },
+            {}
+        );
+
+
     const content =
         document.getElementById(
             "mainContent"
@@ -1943,7 +1969,8 @@ async function renderPatients() {
                                         .map(
                                             patient =>
                                                 renderPatientRow(
-                                                    patient
+                                                    patient,
+                                                    measurementCounts[patient.id] || 0
                                                 )
                                         )
                                         .join("")}
@@ -1971,7 +1998,10 @@ async function renderPatients() {
    PATIENT ROW
 ================================================================ */
 
-function renderPatientRow(patient) {
+function renderPatientRow(
+    patient,
+    measurementCount = 0
+) {
 
     const patientName =
         patient.name ||
@@ -2018,7 +2048,7 @@ function renderPatientRow(patient) {
                         patient.id
                     )}"
                 >
-                    —
+                    ${measurementCount}
                 </span>
             </td>
 
@@ -2442,7 +2472,7 @@ async function renderPatientRecord(
                     </label>
 
                     <button
-                        class="button secondary"
+                        class="button primary"
                         type="button"
                         onclick="submitPatientBatchScanRequests('${escapeJsString(patient.id)}')"
                     >
@@ -4152,8 +4182,13 @@ function updateUserHeader() {
 
 
     const role =
-        currentProfile?.role ||
-        "operator";
+        currentUser?.user_metadata?.role === "admin"
+            ? "admin"
+            : (
+                currentProfile?.role ||
+                currentUser?.user_metadata?.role ||
+                "operator"
+            );
 
 
     const nameElement =
