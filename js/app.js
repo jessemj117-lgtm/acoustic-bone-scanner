@@ -23,7 +23,11 @@ let referenceGroupsCache = [];
 
 let selectedPatientId = null;
 
-let scanPollTimer = null;
+let scanPollTimer = null; // Scanner status refresh timer
+let patientScanPollTimer = null;
+let patientScanPollGeneration = 0;
+let activePatientScanPatientId = null;
+let activePatientScanRequestIds = [];
 
 
 /* ================================================================
@@ -2473,6 +2477,14 @@ async function renderPatientRecord(
                     </button>
 
                     <button
+                        class="button danger"
+                        type="button"
+                        onclick="stopPatientScan('${escapeJsString(patient.id)}')"
+                    >
+                        Stop Scan
+                    </button>
+
+                    <button
                         class="button secondary"
                         type="button"
                         onclick="navigate('scanner')"
@@ -3295,168 +3307,106 @@ function startPatientScanPolling(
     patientId,
     requestId
 ) {
+    if (!patientId || !requestId) return;
 
-    if (!patientId || !requestId) {
-        return;
+    if (patientScanPollTimer) {
+        clearTimeout(patientScanPollTimer);
+        patientScanPollTimer = null;
     }
 
-    if (scanPollTimer) {
-        clearTimeout(scanPollTimer);
-        scanPollTimer = null;
-    }
+    const pollGeneration = ++patientScanPollGeneration;
+    activePatientScanPatientId = patientId;
+    activePatientScanRequestIds = [requestId];
 
     let attempts = 0;
     const intervalMs = 3000;
     const maxAttempts = 300; // 15 minutes
 
     const poll = async () => {
-
+        if (pollGeneration !== patientScanPollGeneration) return;
         attempts++;
 
         try {
-
-            const {
-                data,
-                error
-            } = await db
+            const { data, error } = await db
                 .from("scan_requests")
                 .select("id,status,error_message")
-                .eq(
-                    "id",
-                    requestId
-                )
+                .eq("id", requestId)
                 .maybeSingle();
 
-            if (error) {
-                throw error;
-            }
+            if (error) throw error;
+            if (pollGeneration !== patientScanPollGeneration) return;
 
-            const status =
-                document.getElementById(
-                    "patientScanRequestStatus"
-                );
+            const status = document.getElementById("patientScanRequestStatus");
 
             if (!data) {
-
                 if (attempts < maxAttempts) {
-                    scanPollTimer =
-                        setTimeout(
-                            poll,
-                            intervalMs
-                        );
+                    patientScanPollTimer = setTimeout(poll, intervalMs);
                 }
-
                 return;
             }
 
-            if (
-                data.status ===
-                "completed"
-            ) {
-
-                scanPollTimer = null;
+            if (data.status === "completed") {
+                patientScanPollTimer = null;
+                activePatientScanPatientId = null;
+                activePatientScanRequestIds = [];
 
                 if (status) {
                     status.innerHTML = `
                         <div class="success-message">
-                            <strong>Scan completed.</strong>
-                            <br>
+                            <strong>Scan completed.</strong><br>
                             Loading updated patient measurements...
-                        </div>
-                    `;
+                        </div>`;
                 }
 
-                await openPatientRecord(
-                    patientId,
-                    false
-                );
-
-                toast(
-                    "Patient scan completed.",
-                    "success"
-                );
-
+                await openPatientRecord(patientId, false);
+                if (pollGeneration !== patientScanPollGeneration) return;
+                toast("Patient scan completed.", "success");
                 return;
             }
 
-            if (
-                data.status === "failed" ||
-                data.status === "cancelled"
-            ) {
-
-                scanPollTimer = null;
+            if (data.status === "failed" || data.status === "cancelled" || data.status === "error") {
+                patientScanPollTimer = null;
+                activePatientScanPatientId = null;
+                activePatientScanRequestIds = [];
 
                 if (status) {
                     status.innerHTML = `
-                        <div class="error-message">
-                            Scan request:
-                            ${escapeHtml(
-                                data.status
-                            )}
-                            ${
-                                data.error_message
-                                    ? `<br>${escapeHtml(
-                                        data.error_message
-                                    )}`
-                                    : ""
-                            }
-                        </div>
-                    `;
+                        <div class="${data.status === "cancelled" ? "warning-message" : "error-message"}">
+                            Scan request: ${escapeHtml(data.status)}
+                            ${data.error_message ? `<br>${escapeHtml(data.error_message)}` : ""}
+                        </div>`;
                 }
-
                 return;
             }
 
             if (status) {
                 status.innerHTML = `
                     <div class="info-message">
-                        Scanner status:
-                        <strong>
-                            ${escapeHtml(
-                                data.status ||
-                                "pending"
-                            )}
-                        </strong>
-                    </div>
-                `;
+                        Scanner status: <strong>${escapeHtml(data.status || "pending")}</strong>
+                    </div>`;
             }
-
         } catch (error) {
-
-            console.error(
-                "Patient scan polling error:",
-                error
-            );
-
+            console.error("Patient scan polling error:", error);
         }
 
+        if (pollGeneration !== patientScanPollGeneration) return;
+
         if (attempts >= maxAttempts) {
+            patientScanPollTimer = null;
+            activePatientScanPatientId = null;
+            activePatientScanRequestIds = [];
 
-            scanPollTimer = null;
-
-            const status =
-                document.getElementById(
-                    "patientScanRequestStatus"
-                );
-
+            const status = document.getElementById("patientScanRequestStatus");
             if (status) {
                 status.innerHTML = `
                     <div class="warning-message">
-                        The scan is still processing.
-                        You can remain on this patient record
-                        and refresh later to see the result.
-                    </div>
-                `;
+                        The scan is still processing. You can remain on this patient record and refresh later to see the result.
+                    </div>`;
             }
-
             return;
         }
 
-        scanPollTimer =
-            setTimeout(
-                poll,
-                intervalMs
-            );
+        patientScanPollTimer = setTimeout(poll, intervalMs);
     };
 
     poll();
@@ -3470,15 +3420,16 @@ function startPatientBatchScanPolling(
     patientId,
     requestIds
 ) {
+    if (!patientId || !Array.isArray(requestIds) || !requestIds.length) return;
 
-    if (!patientId || !Array.isArray(requestIds) || !requestIds.length) {
-        return;
+    if (patientScanPollTimer) {
+        clearTimeout(patientScanPollTimer);
+        patientScanPollTimer = null;
     }
 
-    if (scanPollTimer) {
-        clearTimeout(scanPollTimer);
-        scanPollTimer = null;
-    }
+    const pollGeneration = ++patientScanPollGeneration;
+    activePatientScanPatientId = patientId;
+    activePatientScanRequestIds = [...requestIds];
 
     let attempts = 0;
     const intervalMs = 3000;
@@ -3487,74 +3438,56 @@ function startPatientBatchScanPolling(
     const terminalIds = new Set();
 
     const poll = async () => {
-
+        if (pollGeneration !== patientScanPollGeneration) return;
         attempts++;
 
         try {
-            const {
-                data,
-                error
-            } = await db
+            const { data, error } = await db
                 .from("scan_requests")
                 .select("id,status,error_message")
                 .in("id", requestIds);
 
-            if (error) {
-                throw error;
-            }
+            if (error) throw error;
+            if (pollGeneration !== patientScanPollGeneration) return;
 
             const rows = Array.isArray(data) ? data : [];
             let newlyCompleted = false;
 
             for (const row of rows) {
-
-                if (!row?.id) {
-                    continue;
-                }
+                if (!row?.id) continue;
 
                 if (row.status === "completed") {
                     terminalIds.add(row.id);
-
                     if (!completedIds.has(row.id)) {
                         completedIds.add(row.id);
                         newlyCompleted = true;
                     }
-                } else if (
-                    row.status === "failed" ||
-                    row.status === "cancelled"
-                ) {
+                } else if (["failed", "cancelled", "error"].includes(row.status)) {
                     terminalIds.add(row.id);
                 }
             }
 
-            const status =
-                document.getElementById(
-                    "patientScanRequestStatus"
-                );
+            const status = document.getElementById("patientScanRequestStatus");
 
             if (newlyCompleted) {
                 if (status) {
                     status.innerHTML = `
                         <div class="success-message">
-                            <strong>Measurement ${completedIds.size} of ${requestIds.length} completed.</strong>
-                            <br>
+                            <strong>Measurement ${completedIds.size} of ${requestIds.length} completed.</strong><br>
                             Loading updated patient measurements...
-                        </div>
-                    `;
+                        </div>`;
                 }
-
-                await openPatientRecord(
-                    patientId,
-                    false
-                );
+                await openPatientRecord(patientId, false);
+                if (pollGeneration !== patientScanPollGeneration) return;
             }
 
             if (terminalIds.size >= requestIds.length) {
-                scanPollTimer = null;
+                patientScanPollTimer = null;
+                activePatientScanPatientId = null;
+                activePatientScanRequestIds = [];
 
                 const failedCount = rows.filter(row =>
-                    row?.status === "failed" ||
-                    row?.status === "cancelled"
+                    row?.status === "failed" || row?.status === "cancelled" || row?.status === "error"
                 ).length;
 
                 toast(
@@ -3563,55 +3496,117 @@ function startPatientBatchScanPolling(
                         : `All ${requestIds.length} measurements completed.`,
                     failedCount ? "error" : "success"
                 );
-
                 return;
             }
 
             if (status && !newlyCompleted) {
                 status.innerHTML = `
                     <div class="info-message">
-                        Scanner status: <strong>${completedIds.size} of ${requestIds.length} measurements completed.</strong>
-                        <br>
+                        Scanner status: <strong>${completedIds.size} of ${requestIds.length} measurements completed.</strong><br>
                         Remaining measurements are being processed automatically.
-                    </div>
-                `;
+                    </div>`;
             }
-
         } catch (error) {
-            console.error(
-                "Batch patient scan polling error:",
-                error
-            );
+            console.error("Batch patient scan polling error:", error);
         }
 
+        if (pollGeneration !== patientScanPollGeneration) return;
+
         if (attempts >= maxAttempts) {
-            scanPollTimer = null;
+            patientScanPollTimer = null;
+            activePatientScanPatientId = null;
+            activePatientScanRequestIds = [];
 
-            const status =
-                document.getElementById(
-                    "patientScanRequestStatus"
-                );
-
+            const status = document.getElementById("patientScanRequestStatus");
             if (status) {
                 status.innerHTML = `
                     <div class="warning-message">
-                        ${completedIds.size} of ${requestIds.length} measurements have completed.
-                        The remaining scans are still processing.
-                        Refresh later if needed.
-                    </div>
-                `;
+                        ${completedIds.size} of ${requestIds.length} measurements have completed. The remaining scans are still processing. Refresh later if needed.
+                    </div>`;
             }
-
             return;
         }
 
-        scanPollTimer = setTimeout(
-            poll,
-            intervalMs
-        );
+        patientScanPollTimer = setTimeout(poll, intervalMs);
     };
 
     poll();
+}
+
+
+/* ================================================================
+   STOP / CANCEL PATIENT SCAN
+================================================================ */
+async function stopPatientScan(patientId) {
+    if (!patientId) {
+        toast("Patient ID is missing.", "error");
+        return;
+    }
+
+    const button = document.querySelector(
+        `#patientScannerPanel button[onclick*="stopPatientScan('${patientId}'"]`
+    );
+
+    if (!confirm("Stop this patient's scan and cancel any queued measurements?")) {
+        return;
+    }
+
+    if (button) {
+        button.disabled = true;
+        button.textContent = "Stopping...";
+    }
+
+    // Invalidate any in-flight polling callback so it cannot restart polling.
+    patientScanPollGeneration++;
+    if (patientScanPollTimer) {
+        clearTimeout(patientScanPollTimer);
+        patientScanPollTimer = null;
+    }
+
+    try {
+        const { data, error } = await db
+            .from("scan_requests")
+            .update({
+                status: "cancelled",
+                error_message: "Cancelled by operator from the patient scanner."
+            })
+            .eq("patient_id", patientId)
+            .in("status", ["pending", "queued", "running", "processing", "in_progress"])
+            .select("id,status");
+
+        if (error) throw error;
+
+        activePatientScanPatientId = null;
+        activePatientScanRequestIds = [];
+
+        const status = document.getElementById("patientScanRequestStatus");
+        const cancelledCount = Array.isArray(data) ? data.length : 0;
+
+        if (status) {
+            status.innerHTML = cancelledCount
+                ? `<div class="warning-message"><strong>Stop request sent.</strong><br>${cancelledCount} pending/active request(s) marked as cancelled.</div>`
+                : `<div class="info-message">No pending or active scan requests were found for this patient.</div>`;
+        }
+
+        toast(
+            cancelledCount
+                ? "Scan cancellation requested."
+                : "No active scan requests to cancel.",
+            cancelledCount ? "success" : "info"
+        );
+    } catch (error) {
+        console.error("Stop patient scan error:", error);
+        const status = document.getElementById("patientScanRequestStatus");
+        if (status) {
+            status.innerHTML = `<div class="error-message">${escapeHtml(error.message || "Unable to stop the scan.")}</div>`;
+        }
+        toast(error.message || "Unable to stop the scan.", "error");
+    } finally {
+        if (button && button.isConnected) {
+            button.disabled = false;
+            button.textContent = "Stop Scan";
+        }
+    }
 }
 
 
@@ -8299,10 +8294,7 @@ async function countRows(
     table
 ) {
 
-    const {
-        count,
-        error
-    } = await db
+    let query = db
         .from(table)
         .select(
             "*",
@@ -8311,6 +8303,13 @@ async function countRows(
                 head: true
             }
         );
+
+    // The patient list excludes soft-deleted rows, so the dashboard must do the same.
+    if (table === "patients") {
+        query = query.is("deleted_at", null);
+    }
+
+    const { count, error } = await query;
 
 
     if (error) {
@@ -10322,6 +10321,7 @@ window.savePatient = savePatient;
 window.viewPatient = viewPatient;
 window.deletePatient = deletePatient;
 window.startPatientScan = startPatientScan;
+window.stopPatientScan = stopPatientScan;
 window.createScanRequest = createScanRequest;
 window.openReferenceGroupForm = openReferenceGroupForm;
 window.openReferenceScannerForm = openReferenceScannerForm;
