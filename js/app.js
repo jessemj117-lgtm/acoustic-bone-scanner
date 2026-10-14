@@ -8294,10 +8294,12 @@ async function countRows(
     table
 ) {
 
+    // Count the primary key only. This keeps dashboard counts independent
+    // of large measurement payloads and makes the count query explicit.
     let query = db
         .from(table)
         .select(
-            "*",
+            "id",
             {
                 count: "exact",
                 head: true
