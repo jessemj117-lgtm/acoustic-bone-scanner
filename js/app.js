@@ -1203,7 +1203,7 @@ function renderABS001ScanComparison(measurement, compact = false) {
             <strong>Overall scan comparison:</strong>
             <strong>${matchLevel}</strong> <span>(${result.similarity}/100)</span>
         </div>
-        <p style="margin:6px 0 0;font-size:13px;"><strong>Relative index: ${densityLevel} (${result.relativeDensityIndex}/100; reference = 100).</strong></p>
+        <p style="margin:6px 0 0;font-size:13px;"><strong>Relative result: ${densityLevel}</strong></p>
     </div>`;
 }
 
