@@ -23,7 +23,7 @@ function renderAcousticReferenceDatabase() {
         <td>${fmt(r.f0_hz, 1)}</td><td>${fmt(r.rms, 4)}</td><td>${fmt(r.bandwidth_hz, 3)}</td><td>${fmt(r.q_factor, 2)}</td></tr>`).join("");
     return `
       <div class="page-header"><div><div class="section-kicker">ABS-001 · EXPERIMENTAL DATABASE</div><h1>Acoustic Reference Database</h1>
-      <p>Built from ${dbData.readings.length} user-provided scans across four participants. All scans are compared by numeric acoustic features; bone and side metadata are ignored. This reference is stored inside the frontend JavaScript file; it is not a Supabase table.</p></div></div>
+      <p>Built from ${dbData.readings.length} user-provided left-radius scans across four participants. This reference is stored inside the frontend JavaScript file; it is not a Supabase table.</p></div></div>
       <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Active comparison reference</h3><p>Participant 2 — assumed healthy, not clinically verified</p></div><span class="badge">Research only</span></div>
       <div class="panel-body"><div class="metrics-grid">
         ${resultCard("Resonance frequency f₀", fmt(ref.f0_hz, 1), "Hz")}
@@ -33,10 +33,10 @@ function renderAcousticReferenceDatabase() {
       </div></div></div>
       <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Participant summary</h3><p>Median values and scan counts from the collected dataset</p></div></div>
       <div class="panel-body"><div style="overflow-x:auto"><table><thead><tr><th>Participant</th><th>Scans</th><th>Median f₀</th><th>Median RMS</th><th>Median bandwidth</th><th>Median Q</th><th>Role</th></tr></thead><tbody>${rows}</tbody></table></div></div></div>
-      <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Interpretation logic</h3><p>Applied to any scan with valid resonance frequency, RMS amplitude and bandwidth; bone and side are ignored</p></div></div>
+      <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Interpretation logic</h3><p>Applied to a new scan using its available acoustic measurements; bone and side metadata are ignored</p></div></div>
       <div class="panel-body">
         <ol>
-          <li><strong>Validate the scan:</strong> bone and side are ignored. Compare any scan with valid resonance frequency, RMS amplitude and bandwidth values.</li>
+          <li><strong>Validate the scan:</strong> compare by acoustic values only; bone and side metadata do not affect eligibility. Valid f₀, RMS and bandwidth are required; Q-factor is optional.</li>
           <li><strong>Calculate relative deviations:</strong> show each measurement as a percentage above or below the assumed reference median.</li>
           <li><strong>Calculate acoustic similarity:</strong> use capped relative deviations weighted as 45% resonance frequency, 40% bandwidth and 15% RMS amplitude. Q-factor is displayed as a comparison metric but is not included in the score because it is related to resonance frequency and bandwidth.</li>
           <li><strong>Display provisional labels:</strong> 85–100 = close acoustic match; 70–84 = moderate acoustic difference; below 70 = large acoustic difference.</li>
@@ -99,106 +99,179 @@ function getABS001AcousticInterpretation(measurement) {
         return { supported: false, message: "No measurement record was provided." };
     }
 
-    // Compare every scan with available numeric acoustic measurements only.
-    // Bone and side metadata are intentionally ignored.
-
+    // Compare acoustic values only. Bone and side metadata are deliberately ignored.
     const pickNumber = (...values) => {
         for (const value of values) {
-            if (value !== null && value !== undefined && value !== "") {
+            if (value !== null && value !== undefined && String(value).trim() !== "") {
                 const n = Number(value);
                 if (Number.isFinite(n)) return n;
             }
         }
         return null;
     };
-    const f0 = pickNumber(measurement.f0, measurement.f0_hz, measurement.resonance_frequency, measurement.resonant_frequency, measurement.peak_frequency);
-    const rms = pickNumber(measurement.rms, measurement.rms_amplitude, measurement.peak_rms, measurement.rms_value);
-    const bw = pickNumber(measurement.bandwidth, measurement.bandwidth_hz, measurement.bandwidth_hz_value, measurement.bw);
+    const f0 = pickNumber(
+        measurement.f0, measurement.f0_hz, measurement.resonance_frequency,
+        measurement.resonant_frequency, measurement.peak_frequency
+    );
+    const rms = pickNumber(
+        measurement.rms, measurement.rms_amplitude, measurement.peak_rms,
+        measurement.rms_value, measurement.amplitude_rms
+    );
+    const bw = pickNumber(
+        measurement.bandwidth, measurement.bandwidth_hz,
+        measurement.bandwidth_hz_value, measurement.bw
+    );
     const q = pickNumber(measurement.q_factor, measurement.q, measurement.quality_factor);
 
-    // Q is shown when available, but it is not required for the score calculation.
+    // f0, RMS and bandwidth are needed for the comparison score. Q is optional.
     if (f0 === null || rms === null || bw === null || f0 <= 0 || rms < 0 || bw <= 0) {
-        return { supported: false, message: "This scan needs valid resonance frequency, RMS amplitude and bandwidth values before it can be compared. Check that the completed measurement values were saved to the database." };
+        return {
+            supported: false,
+            message: "This scan needs valid resonance frequency, RMS amplitude and bandwidth values before it can be compared."
+        };
     }
 
-    // Provisional engineering similarity, not a medical density model.
-    const cappedDeviation = (v, r) => Math.min(1, Math.abs((v - r) / r));
+    // Provisional acoustic similarity only; not a bone-density estimate.
+    const cappedDeviation = (value, reference) => Math.min(1, Math.abs((value - reference) / reference));
     const distance =
         0.45 * cappedDeviation(f0, ref.f0_hz) +
         0.40 * cappedDeviation(bw, ref.bandwidth_hz) +
         0.15 * Math.min(1, Math.abs(Math.log((rms + 1e-9) / (ref.rms + 1e-9))) / Math.log(4));
     const similarity = Math.round(Math.max(0, Math.min(100, (1 - distance) * 100)));
+
     let label;
     let detail;
     if (similarity >= 85) {
         label = "Close acoustic match";
-        detail = "The measured acoustic profile is relatively close to the assumed reference medians.";
+        detail = "The measured acoustic profile is relatively close to the reference values.";
     } else if (similarity >= 70) {
         label = "Moderate acoustic difference";
-        detail = "Some measured acoustic features differ from the assumed reference profile.";
+        detail = "Some measured acoustic features differ from the reference profile.";
     } else {
         label = "Large acoustic difference";
-        detail = "The profile differs substantially from the assumed reference. Repeat the scan and check sensor placement/contact before drawing conclusions.";
+        detail = "The measured acoustic profile differs substantially from the reference. Check sensor placement and contact, and consider repeating the scan.";
     }
+
     return {
         supported: true,
         similarity,
         label,
         detail,
         reference: ref,
+        measured: { f0, rms, bandwidth: bw, q },
         deviations: {
             f0: abs001FormatDeviation(f0, ref.f0_hz),
             rms: abs001FormatDeviation(rms, ref.rms),
             bandwidth: abs001FormatDeviation(bw, ref.bandwidth_hz),
             q: q === null || q <= 0 ? "not available" : abs001FormatDeviation(q, ref.q_factor)
         },
-        measured: { f0, rms, bandwidth: bw, q },
-        clinicalMessage: "Bone mineral density cannot be determined from this acoustic comparison. This is not a clinical diagnosis or a validated density estimate."
+        clinicalMessage: "This is a relative acoustic comparison only. It does not determine bone mineral density or diagnose osteoporosis."
     };
 }
 
 function renderABS001AcousticInterpretation(measurement) {
     const result = getABS001AcousticInterpretation(measurement);
+    const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
     if (!result.supported) {
         return `
             <div class="panel" style="margin-top:16px;border:1px solid rgba(128,128,128,.28);">
-                <div class="panel-header"><div><div class="section-kicker">REFERENCE COMPARISON</div><h3>Relative acoustic interpretation</h3></div><span class="badge">Research only</span></div>
+                <div class="panel-header">
+                    <div><div class="section-kicker">REFERENCE COMPARISON</div><h3>Relative acoustic comparison</h3></div>
+                    <span class="badge">Research only</span>
+                </div>
                 <div class="panel-body">
-                    <strong>Comparison not available for this scan</strong>
+                    <strong>Comparison unavailable for this scan</strong>
                     <p>${escapeHtml(result.message)}</p>
-                    <p><strong>Reference profile:</strong> Participant 2 assumed reference — f₀ ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.f0_hz} Hz, RMS ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.rms}, bandwidth ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.bandwidth_hz} Hz, Q ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.q_factor.toFixed(2)}.</p>
-                    <p><strong>Bone mineral density:</strong> Not determined. This prototype does not calculate a clinical density value or osteoporosis diagnosis.</p>
+                    <p><strong>Reference values:</strong> f₀ ${Number(ref.f0_hz).toFixed(1)} Hz; RMS ${Number(ref.rms).toFixed(4)}; bandwidth ${Number(ref.bandwidth_hz).toFixed(3)} Hz; Q ${Number(ref.q_factor).toFixed(2)}.</p>
                 </div>
             </div>`;
     }
-    const ref = result.reference;
+
     return `
         <div class="panel" style="margin-top:16px;border:1px solid rgba(128,128,128,.28);">
             <div class="panel-header">
-                <div><div class="section-kicker">EXPERIMENTAL REFERENCE COMPARISON</div><h3>Relative acoustic interpretation</h3></div>
+                <div><div class="section-kicker">REFERENCE COMPARISON</div><h3>Relative acoustic comparison</h3></div>
                 <span class="badge">Research only</span>
             </div>
             <div class="panel-body">
                 <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-                    <strong style="font-size:1.6rem;">${result.similarity}/100</strong>
+                    <strong style="font-size:1.35rem;">${result.similarity}/100</strong>
                     <strong>${escapeHtml(result.label)}</strong>
                 </div>
                 <p>${escapeHtml(result.detail)}</p>
-                <p><strong>Measured profile compared with assumed reference medians</strong></p>
-                <div style="overflow-x:auto"><table><thead><tr><th>Parameter</th><th>New scan</th><th>Reference median</th><th>Difference</th></tr></thead><tbody>
-                    <tr><td>Resonance frequency f₀</td><td>${result.measured.f0.toFixed(1)} Hz</td><td>${Number(ref.f0_hz).toFixed(1)} Hz</td><td>${escapeHtml(result.deviations.f0)}</td></tr>
-                    <tr><td>RMS amplitude</td><td>${result.measured.rms.toFixed(4)}</td><td>${Number(ref.rms).toFixed(4)}</td><td>${escapeHtml(result.deviations.rms)}</td></tr>
-                    <tr><td>Bandwidth</td><td>${result.measured.bandwidth.toFixed(3)} Hz</td><td>${Number(ref.bandwidth_hz).toFixed(3)} Hz</td><td>${escapeHtml(result.deviations.bandwidth)}</td></tr>
-                    <tr><td>Q-factor</td><td>${result.measured.q === null ? "Not available" : result.measured.q.toFixed(3)}</td><td>${Number(ref.q_factor).toFixed(3)}</td><td>${escapeHtml(result.deviations.q)}</td></tr>
-                </tbody></table></div>
-                <div style="margin-top:14px;padding:12px;border-radius:8px;background:rgba(128,128,128,.08);">
-                    <strong>Bone-density interpretation: Not available from this prototype.</strong>
-                    <p style="margin:6px 0 0">The score indicates similarity to an assumed acoustic reference only. It is not bone density, a probability of osteoporosis, or a clinical screening result. No DXA-confirmed density labels are available to train or validate a density interpretation.</p>
+                <p><strong>Measured values compared with reference:</strong></p>
+                <div style="overflow-x:auto;">
+                  <table>
+                    <thead><tr><th>Feature</th><th>Measured</th><th>Reference</th><th>Difference</th></tr></thead>
+                    <tbody>
+                      <tr><td>Resonance frequency (f₀)</td><td>${Number(result.measured.f0).toFixed(1)} Hz</td><td>${Number(ref.f0_hz).toFixed(1)} Hz</td><td>${escapeHtml(result.deviations.f0)}</td></tr>
+                      <tr><td>RMS amplitude</td><td>${Number(result.measured.rms).toFixed(4)}</td><td>${Number(ref.rms).toFixed(4)}</td><td>${escapeHtml(result.deviations.rms)}</td></tr>
+                      <tr><td>Bandwidth</td><td>${Number(result.measured.bandwidth).toFixed(3)} Hz</td><td>${Number(ref.bandwidth_hz).toFixed(3)} Hz</td><td>${escapeHtml(result.deviations.bandwidth)}</td></tr>
+                      <tr><td>Q-factor</td><td>${result.measured.q === null || result.measured.q <= 0 ? "Not available" : Number(result.measured.q).toFixed(3)}</td><td>${Number(ref.q_factor).toFixed(3)}</td><td>${escapeHtml(result.deviations.q)}</td></tr>
+                    </tbody>
+                  </table>
                 </div>
-                <small>Reference: Participant 2, assumed healthy but not clinically verified. The scoring weights and labels are provisional engineering choices, not medically validated thresholds.</small>
+                <p><strong>Reference profile:</strong> Participant 2, assumed healthy for prototype comparison only; not clinically verified.</p>
+                <p><strong>Important:</strong> The score indicates acoustic similarity only. It is not a bone-density value, medical diagnosis, or validated osteoporosis screening result.</p>
             </div>
         </div>`;
 }
+
+let selectedPatientId = null;
+
+let scanPollTimer = null; // Scanner status refresh timer
+let patientScanPollTimer = null;
+let patientScanPollGeneration = 0;
+let activePatientScanPatientId = null;
+let activePatientScanRequestIds = [];
+
+
+/* ================================================================
+   INITIALIZATION
+================================================================ */
+
+document.addEventListener(
+    "DOMContentLoaded",
+    initializeApplication
+);
+
+
+async function initializeApplication() {
+
+    console.log(
+        "Acoustic Bone Scanner frontend starting..."
+    );
+
+
+    if (!db) {
+
+        showFatalError(
+            "Supabase could not be initialized. Check js/config.js."
+        );
+
+        return;
+    }
+
+
+    bindStaticEvents();
+
+
+    setupModal();
+
+
+    await restoreAuthentication();
+
+
+    updateConnectionStatus(
+        true
+    );
+}
+
+
+/* ================================================================
+   STATIC EVENT HANDLERS
+================================================================ */
+
 function bindStaticEvents() {
 
     const loginForm =
@@ -1151,13 +1224,6 @@ function renderPatientResults(
 
     `;
 
-
-    html += `
-        <div class="panel" style="margin-bottom:16px;border:2px solid rgba(80,130,180,.55);">
-            <div class="panel-header"><div><div class="section-kicker">ABS-001 RESEARCH COMPARISON</div><h3>Relative acoustic profile — patient results</h3><p>Each eligible scan shows its comparison below the measured values.</p></div><span class="badge">Not a clinical density result</span></div>
-            <div class="panel-body"><p>The comparison uses Participant 2 as an assumed reference: f₀ ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.f0_hz} Hz, RMS ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.rms}, bandwidth ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.bandwidth_hz} Hz, and Q ${ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference.q_factor.toFixed(2)}.</p><p><strong>Important:</strong> the system can report acoustic similarity only. It cannot interpret or calculate actual bone mineral density or diagnose osteoporosis.</p></div>
-        </div>
-    `;
 
     html += `
 
