@@ -111,17 +111,21 @@ function getABS001AcousticInterpretation(measurement) {
     };
     const f0 = pickNumber(
         measurement.f0, measurement.f0_hz, measurement.resonance_frequency,
-        measurement.resonant_frequency, measurement.peak_frequency
+        measurement.resonance_frequency_hz, measurement.resonant_frequency,
+        measurement.peak_frequency, measurement.peak_frequency_hz,
+        measurement.resonant_frequency_hz
     );
     const rms = pickNumber(
         measurement.rms, measurement.rms_amplitude, measurement.peak_rms,
-        measurement.rms_value, measurement.amplitude_rms
+        measurement.rms_value, measurement.amplitude_rms, measurement.rms_voltage,
+        measurement.signal_rms
     );
     const bw = pickNumber(
         measurement.bandwidth, measurement.bandwidth_hz,
-        measurement.bandwidth_hz_value, measurement.bw
+        measurement.bandwidth_hz_value, measurement.bw,
+        measurement.bandwidth_value, measurement.bandwidth_frequency
     );
-    const q = pickNumber(measurement.q_factor, measurement.q, measurement.quality_factor);
+    const q = pickNumber(measurement.q_factor, measurement.q, measurement.quality_factor, measurement.q_value);
 
     // f0, RMS and bandwidth are needed for the comparison score. Q is optional.
     if (f0 === null || rms === null || bw === null || f0 <= 0 || rms < 0 || bw <= 0) {
@@ -1188,6 +1192,52 @@ async function renderPatientPortal(patient) {
 }
 
 
+function renderABS001PatientComparisonSummary(measurements) {
+    const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
+    const safeMeasurements = Array.isArray(measurements) ? measurements : [];
+    const rows = safeMeasurements.map((measurement, index) => {
+        const result = getABS001AcousticInterpretation(measurement);
+        const date = typeof formatDate === "function" ? formatDate(measurement.created_at) : (measurement.created_at || `Scan ${index + 1}`);
+        if (!result.supported) {
+            return `<tr>
+                <td>${escapeHtml(String(date))}</td>
+                <td colspan="5"><strong>Comparison unavailable</strong><br><span>${escapeHtml(result.message)}</span></td>
+            </tr>`;
+        }
+        return `<tr>
+            <td>${escapeHtml(String(date))}</td>
+            <td>${Number(result.measured.f0).toFixed(1)} Hz<br><small>${escapeHtml(result.deviations.f0)}</small></td>
+            <td>${Number(result.measured.rms).toFixed(4)}<br><small>${escapeHtml(result.deviations.rms)}</small></td>
+            <td>${Number(result.measured.bandwidth).toFixed(3)} Hz<br><small>${escapeHtml(result.deviations.bandwidth)}</small></td>
+            <td>${result.measured.q === null || result.measured.q <= 0 ? "Not available" : Number(result.measured.q).toFixed(3)}<br><small>${escapeHtml(result.deviations.q)}</small></td>
+            <td><strong>${result.similarity}/100</strong><br>${escapeHtml(result.label)}</td>
+        </tr>`;
+    }).join("");
+
+    return `
+      <section class="panel" id="patientAcousticComparison" style="margin-bottom:18px;border:2px solid var(--primary-color, #64748b);">
+        <div class="panel-header">
+          <div>
+            <div class="section-kicker">PATIENT RESULTS</div>
+            <h2 style="margin:4px 0">Relative acoustic comparison</h2>
+            <p>Each scan is compared with the same reference profile. Bone and side are ignored.</p>
+          </div>
+          <span class="badge primary">Research only</span>
+        </div>
+        <div class="panel-body">
+          <p><strong>Reference profile — Participant 2:</strong> resonance frequency ${Number(ref.f0_hz).toFixed(1)} Hz; RMS ${Number(ref.rms).toFixed(4)}; bandwidth ${Number(ref.bandwidth_hz).toFixed(3)} Hz; Q-factor ${Number(ref.q_factor).toFixed(3)}.</p>
+          ${safeMeasurements.length ? `
+            <div style="overflow-x:auto">
+              <table>
+                <thead><tr><th>Scan date</th><th>Resonance frequency</th><th>RMS amplitude</th><th>Bandwidth</th><th>Q-factor</th><th>Acoustic similarity</th></tr></thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>` : `<p>No measurements are available to compare yet.</p>`}
+          <p style="margin-top:12px"><strong>Interpretation:</strong> this score describes similarity to the chosen acoustic reference only. It is not a bone mineral density value, clinical risk score, or diagnosis.</p>
+        </div>
+      </section>`;
+}
+
 function renderPatientResults(
     patient,
     measurements
@@ -1224,6 +1274,9 @@ function renderPatientResults(
 
     `;
 
+
+    // Keep the comparison visible at the top of the patient portal, separate from scan cards.
+    html += renderABS001PatientComparisonSummary(measurements);
 
     html += `
 
