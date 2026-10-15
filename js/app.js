@@ -2767,6 +2767,9 @@ async function renderPatientRecord(
         </section>
 
 
+        ${renderABS001PatientComparisonSummary(measurements)}
+
+
         <section class="panel">
 
             <div class="panel-header">
@@ -2810,6 +2813,7 @@ async function renderPatientRecord(
                                         <th>RMS</th>
                                         <th>Bandwidth</th>
                                         <th>Q</th>
+                                        <th>Relative comparison</th>
                                         <th>Action</th>
                                     </tr>
 
@@ -4061,7 +4065,10 @@ function renderPatientMeasurementRow(
 ) {
 
     const qValue =
-        measurement.q_factor;
+        measurement.q_factor ?? measurement.q;
+
+    const acousticComparison =
+        getABS001AcousticInterpretation(measurement);
 
     const measurementId =
         String(
@@ -4133,6 +4140,12 @@ function renderPatientMeasurementRow(
                         ? "—"
                         : Number(qValue).toFixed(3)
                 }
+            </td>
+
+            <td>
+                ${acousticComparison.supported
+                    ? `<strong>${acousticComparison.similarity}/100</strong><br><span>${escapeHtml(acousticComparison.label)}</span><br><small>f₀: ${escapeHtml(acousticComparison.deviations.f0)}<br>RMS: ${escapeHtml(acousticComparison.deviations.rms)}<br>BW: ${escapeHtml(acousticComparison.deviations.bandwidth)}</small>`
+                    : `<strong>Unavailable</strong><br><small>${escapeHtml(acousticComparison.message)}</small>`}
             </td>
 
             <td>
