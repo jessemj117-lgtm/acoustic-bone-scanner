@@ -6399,6 +6399,9 @@ async function viewPatient(
         </section>
 
 
+        ${renderABS001PatientComparisonSummary(measurements)}
+
+
         <section class="panel">
 
             <div class="panel-header">
