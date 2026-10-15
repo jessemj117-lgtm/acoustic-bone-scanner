@@ -135,13 +135,30 @@ function getABS001AcousticInterpretation(measurement) {
         };
     }
 
-    // Provisional acoustic similarity only; not a bone-density estimate.
+    // Overall acoustic similarity score: how closely the scan matches the selected reference.
     const cappedDeviation = (value, reference) => Math.min(1, Math.abs((value - reference) / reference));
     const distance =
         0.45 * cappedDeviation(f0, ref.f0_hz) +
         0.40 * cappedDeviation(bw, ref.bandwidth_hz) +
         0.15 * Math.min(1, Math.abs(Math.log((rms + 1e-9) / (ref.rms + 1e-9))) / Math.log(4));
     const similarity = Math.round(Math.max(0, Math.min(100, (1 - distance) * 100)));
+
+    // SPECULATIVE MINI-PROJECT INDEX, not a physical BMD calculation.
+    // Higher resonance frequency and lower bandwidth are treated as a stiffer acoustic response;
+    // RMS has a low weight because it is strongly affected by sensor contact/coupling.
+    // Ratios are bounded to prevent a single extreme measurement dominating the estimate.
+    const boundedRatio = (value, reference) => Math.max(0.5, Math.min(1.5, value / reference));
+    const relativeDensityIndex = Math.round(100 * (
+        0.45 * boundedRatio(f0, ref.f0_hz) +
+        0.40 * boundedRatio(ref.bandwidth_hz, bw) +
+        0.15 * boundedRatio(rms + 1e-9, ref.rms + 1e-9)
+    ));
+    let relativeDensityLevel;
+    if (relativeDensityIndex < 85) relativeDensityLevel = 'Very low relative acoustic index';
+    else if (relativeDensityIndex < 95) relativeDensityLevel = 'Low relative acoustic index';
+    else if (relativeDensityIndex <= 105) relativeDensityLevel = 'Intermediate relative acoustic index';
+    else if (relativeDensityIndex < 115) relativeDensityLevel = 'High relative acoustic index';
+    else relativeDensityLevel = 'Very high relative acoustic index';
 
     let label;
     let detail;
@@ -159,6 +176,8 @@ function getABS001AcousticInterpretation(measurement) {
     return {
         supported: true,
         similarity,
+        relativeDensityIndex,
+        relativeDensityLevel,
         label,
         detail,
         reference: ref,
@@ -1192,48 +1211,104 @@ async function renderPatientPortal(patient) {
 }
 
 
+function renderABS001ScanComparison(measurement, compact = false) {
+    const result = getABS001AcousticInterpretation(measurement);
+    if (!result || !result.supported) {
+        return `<div class="abs001-scan-comparison" style="margin-top:${compact ? '0' : '14px'};padding:12px;border:1px solid rgba(128,128,128,.28);border-radius:8px;">
+            <strong>Overall scan comparison:</strong> Not available
+            <p style="margin:6px 0 0;font-size:13px;">${escapeHtml(result?.message || 'Valid acoustic measurements are required.')}</p>
+            <p style="margin:6px 0 0;font-size:13px;"><strong>Relative bone density:</strong> Not established by this prototype.</p>
+        </div>`;
+    }
+    let level;
+    if (result.similarity >= 90) level = 'Very high acoustic match';
+    else if (result.similarity >= 80) level = 'High acoustic match';
+    else if (result.similarity >= 65) level = 'Intermediate acoustic match';
+    else if (result.similarity >= 45) level = 'Low acoustic match';
+    else level = 'Very low acoustic match';
+    return `<div class="abs001-scan-comparison" style="margin-top:${compact ? '0' : '14px'};padding:12px;border:1px solid rgba(128,128,128,.28);border-radius:8px;">
+        <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;">
+            <strong>Overall scan comparison:</strong>
+            <strong>${escapeHtml(level)}</strong>
+            <span>${result.similarity}/100</span>
+        </div>
+        <p style="margin:6px 0 0;font-size:13px;"><strong>Experimental relative density estimate:</strong> ${escapeHtml(result.relativeDensityLevel)} (${result.relativeDensityIndex}/100; reference = 100).</p>
+        <p style="margin:6px 0 0;font-size:12px;opacity:.75;">Speculative acoustic index for this college mini-project. It compares the scan with the selected reference using resonance frequency, inverse bandwidth, and a low-weight RMS term. It is not measured bone mineral density or a clinical diagnosis.</p>
+    </div>`;
+}
+
 function renderABS001PatientComparisonSummary(measurements) {
-    const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
     const safeMeasurements = Array.isArray(measurements) ? measurements : [];
-    const rows = safeMeasurements.map((measurement, index) => {
-        const result = getABS001AcousticInterpretation(measurement);
-        const date = typeof formatDate === "function" ? formatDate(measurement.created_at) : (measurement.created_at || `Scan ${index + 1}`);
-        if (!result.supported) {
-            return `<tr>
-                <td>${escapeHtml(String(date))}</td>
-                <td colspan="5"><strong>Comparison unavailable</strong><br><span>${escapeHtml(result.message)}</span></td>
-            </tr>`;
-        }
-        return `<tr>
-            <td>${escapeHtml(String(date))}</td>
-            <td>${Number(result.measured.f0).toFixed(1)} Hz<br><small>${escapeHtml(result.deviations.f0)}</small></td>
-            <td>${Number(result.measured.rms).toFixed(4)}<br><small>${escapeHtml(result.deviations.rms)}</small></td>
-            <td>${Number(result.measured.bandwidth).toFixed(3)} Hz<br><small>${escapeHtml(result.deviations.bandwidth)}</small></td>
-            <td>${result.measured.q === null || result.measured.q <= 0 ? "Not available" : Number(result.measured.q).toFixed(3)}<br><small>${escapeHtml(result.deviations.q)}</small></td>
-            <td><strong>${result.similarity}/100</strong><br>${escapeHtml(result.label)}</td>
-        </tr>`;
-    }).join("");
+    const validResults = safeMeasurements
+        .map(measurement => getABS001AcousticInterpretation(measurement))
+        .filter(result => result && result.supported && Number.isFinite(result.similarity));
+
+    if (!validResults.length) {
+        return `
+          <section class="panel" id="patientAcousticComparison" style="margin-bottom:18px;">
+            <div class="panel-header">
+              <div>
+                <div class="section-kicker">PATIENT RESULTS</div>
+                <h2 style="margin:4px 0">Overall relative comparison</h2>
+              </div>
+              <span class="badge">Research only</span>
+            </div>
+            <div class="panel-body">
+              <p><strong>Comparison level:</strong> Not available</p>
+              <p>Valid acoustic measurements are needed to calculate an overall comparison level.</p>
+              <p><strong>Relative bone density:</strong> Not established by this experimental scanner.</p>
+            </div>
+          </section>`;
+    }
+
+    // Patient-level summary complements the individual comparison shown on every scan.
+    const averageScore = Math.round(
+        validResults.reduce((sum, result) => sum + result.similarity, 0) / validResults.length
+    );
+    const averageDensityIndex = Math.round(
+        validResults.reduce((sum, result) => sum + result.relativeDensityIndex, 0) / validResults.length
+    );
+    let densityLevel;
+    if (averageDensityIndex < 85) densityLevel = "Very low relative acoustic index";
+    else if (averageDensityIndex < 95) densityLevel = "Low relative acoustic index";
+    else if (averageDensityIndex <= 105) densityLevel = "Intermediate relative acoustic index";
+    else if (averageDensityIndex < 115) densityLevel = "High relative acoustic index";
+    else densityLevel = "Very high relative acoustic index";
+
+    let level;
+    if (averageScore >= 90) level = "Very high acoustic match";
+    else if (averageScore >= 80) level = "High acoustic match";
+    else if (averageScore >= 65) level = "Intermediate acoustic match";
+    else if (averageScore >= 45) level = "Low acoustic match";
+    else level = "Very low acoustic match";
 
     return `
       <section class="panel" id="patientAcousticComparison" style="margin-bottom:18px;border:2px solid var(--primary-color, #64748b);">
         <div class="panel-header">
           <div>
             <div class="section-kicker">PATIENT RESULTS</div>
-            <h2 style="margin:4px 0">Relative acoustic comparison</h2>
-            <p>Each scan is compared with the same reference profile. Bone and side are ignored.</p>
+            <h2 style="margin:4px 0">Overall relative comparison</h2>
+            <p>One summary based on the patient's valid scans compared with the selected acoustic reference.</p>
           </div>
-          <span class="badge primary">Research only</span>
+          <span class="badge">Research only</span>
         </div>
         <div class="panel-body">
-          <p><strong>Reference profile — Participant 2:</strong> resonance frequency ${Number(ref.f0_hz).toFixed(1)} Hz; RMS ${Number(ref.rms).toFixed(4)}; bandwidth ${Number(ref.bandwidth_hz).toFixed(3)} Hz; Q-factor ${Number(ref.q_factor).toFixed(3)}.</p>
-          ${safeMeasurements.length ? `
-            <div style="overflow-x:auto">
-              <table>
-                <thead><tr><th>Scan date</th><th>Resonance frequency</th><th>RMS amplitude</th><th>Bandwidth</th><th>Q-factor</th><th>Acoustic similarity</th></tr></thead>
-                <tbody>${rows}</tbody>
-              </table>
-            </div>` : `<p>No measurements are available to compare yet.</p>`}
-          <p style="margin-top:12px"><strong>Interpretation:</strong> this score describes similarity to the chosen acoustic reference only. It is not a bone mineral density value, clinical risk score, or diagnosis.</p>
+          <div style="display:flex;gap:24px;flex-wrap:wrap;align-items:center;">
+            <div>
+              <div style="font-size:13px;opacity:.75;margin-bottom:5px;">Comparison level</div>
+              <strong style="font-size:1.35rem;">${escapeHtml(level)}</strong>
+            </div>
+            <div>
+              <div style="font-size:13px;opacity:.75;margin-bottom:5px;">Relative acoustic match</div>
+              <strong style="font-size:1.35rem;">${averageScore}/100</strong>
+            </div>
+            <div>
+              <div style="font-size:13px;opacity:.75;margin-bottom:5px;">Scans included</div>
+              <strong style="font-size:1.35rem;">${validResults.length}</strong>
+            </div>
+          </div>
+          <p style="margin-top:14px;"><strong>Average experimental relative density estimate:</strong> ${escapeHtml(densityLevel)} (${averageDensityIndex}/100; reference = 100).</p>
+          <p><strong>How to read it:</strong> This is a speculative acoustic index calculated from the patient's valid scans relative to Participant 2's reference profile. It is a mini-project comparison, not a measured bone mineral density value or a clinical diagnosis.</p>
         </div>
       </section>`;
 }
@@ -1274,9 +1349,6 @@ function renderPatientResults(
 
     `;
 
-
-    // Keep the comparison visible at the top of the patient portal, separate from scan cards.
-    html += renderABS001PatientComparisonSummary(measurements);
 
     html += `
 
@@ -2767,7 +2839,7 @@ async function renderPatientRecord(
         </section>
 
 
-        ${renderABS001PatientComparisonSummary(measurements)}
+        
 
 
         <section class="panel">
@@ -2813,7 +2885,7 @@ async function renderPatientRecord(
                                         <th>RMS</th>
                                         <th>Bandwidth</th>
                                         <th>Q</th>
-                                        <th>Relative comparison</th>
+                                        <th>Overall comparison</th>
                                         <th>Action</th>
                                     </tr>
 
@@ -4067,9 +4139,6 @@ function renderPatientMeasurementRow(
     const qValue =
         measurement.q_factor ?? measurement.q;
 
-    const acousticComparison =
-        getABS001AcousticInterpretation(measurement);
-
     const measurementId =
         String(
             measurement?.id ||
@@ -4142,10 +4211,8 @@ function renderPatientMeasurementRow(
                 }
             </td>
 
-            <td>
-                ${acousticComparison.supported
-                    ? `<strong>${acousticComparison.similarity}/100</strong><br><span>${escapeHtml(acousticComparison.label)}</span><br><small>f₀: ${escapeHtml(acousticComparison.deviations.f0)}<br>RMS: ${escapeHtml(acousticComparison.deviations.rms)}<br>BW: ${escapeHtml(acousticComparison.deviations.bandwidth)}</small>`
-                    : `<strong>Unavailable</strong><br><small>${escapeHtml(acousticComparison.message)}</small>`}
+            <td style="min-width:230px;">
+                ${renderABS001ScanComparison(measurement, true)}
             </td>
 
             <td>
@@ -6412,7 +6479,7 @@ async function viewPatient(
         </section>
 
 
-        ${renderABS001PatientComparisonSummary(measurements)}
+        
 
 
         <section class="panel">
@@ -9954,9 +10021,7 @@ function renderPatientMeasurementCard(
                     measurement
                 )}
 
-                <div class="patient-acoustic-interpretation" aria-label="Relative acoustic interpretation">
-                    ${renderABS001AcousticInterpretation(measurement)}
-                </div>
+                ${renderABS001ScanComparison(measurement)}
 
                 <div
                     style="
