@@ -54,6 +54,7 @@ async function showAcousticReferenceDatabase() {
 }
 
 
+
 /* ================================================================
    GLOBAL STATE
 ================================================================ */
@@ -94,15 +95,15 @@ function abs001FormatDeviation(value, reference, unit = "%") {
 
 function getABS001AcousticInterpretation(measurement) {
     const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
-    const boneValue = measurement?.bone ?? measurement?.profile_bone ?? measurement?.bone_type ?? "";
-    const sideValue = measurement?.side ?? measurement?.measurement_side ?? measurement?.profile_side ?? "";
+    const boneValue = measurement?.profile_bone ?? measurement?.bone ?? measurement?.bone_type ?? measurement?.bone_name ?? "";
+    const sideValue = measurement?.profile_side ?? measurement?.side ?? measurement?.measurement_side ?? "";
     if (!measurement || String(boneValue).toLowerCase() !== "radius" || String(sideValue).toLowerCase() !== "left") {
         return { supported: false, message: "The current reference database covers left-radius measurements only." };
     }
-    const f0 = Number(measurement.f0 ?? measurement.f0_hz);
-    const rms = Number(measurement.rms);
-    const bw = Number(measurement.bandwidth ?? measurement.bandwidth_hz);
-    const q = Number(measurement.q_factor ?? measurement.q);
+    const f0 = Number(measurement.f0 ?? measurement.f0_hz ?? measurement.resonance_frequency ?? measurement.resonant_frequency);
+    const rms = Number(measurement.rms ?? measurement.rms_amplitude ?? measurement.peak_rms);
+    const bw = Number(measurement.bandwidth ?? measurement.bandwidth_hz ?? measurement.bandwidth_hz_value);
+    const q = Number(measurement.q_factor ?? measurement.q ?? measurement.quality_factor);
     if (![f0, rms, bw, q].every(Number.isFinite) || f0 <= 0 || rms < 0 || bw <= 0 || q <= 0) {
         return { supported: false, message: "Not enough valid values to compare this scan." };
     }
@@ -1495,6 +1496,7 @@ async function navigate(page) {
                 await renderScanner();
 
                 break;
+
 
             case "acoustic-reference":
 
@@ -9818,12 +9820,12 @@ function renderPatientMeasurementCard(
 
                     <p>
                         ${escapeHtml(
-                            measurement.bone ||
+                            measurement.profile_bone || measurement.bone || measurement.bone_type ||
                             "Bone not specified"
                         )}
                         ·
                         ${escapeHtml(
-                            measurement.side ||
+                            measurement.profile_side || measurement.side || measurement.measurement_side ||
                             "Side not specified"
                         )}
                     </p>
@@ -9842,7 +9844,9 @@ function renderPatientMeasurementCard(
                     measurement
                 )}
 
-                ${renderABS001AcousticInterpretation(measurement)}
+                <div class="patient-acoustic-interpretation" aria-label="Relative acoustic interpretation">
+                    ${renderABS001AcousticInterpretation(measurement)}
+                </div>
 
                 <div
                     style="
@@ -10507,6 +10511,5 @@ window.closeModal = closeModal;
 window.toggleSidebar = toggleSidebar;
 window.togglePatientMeasurementGraph = togglePatientMeasurementGraph;
 window.toggleStaffMeasurementGraph = toggleStaffMeasurementGraph;
-window.getABS001AcousticInterpretation = getABS001AcousticInterpretation;
+
 window.renderAcousticReferenceDatabase = renderAcousticReferenceDatabase;
-window.ABS001_ACOUSTIC_REFERENCE_DB = ABS001_ACOUSTIC_REFERENCE_DB;
