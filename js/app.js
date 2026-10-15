@@ -4,6 +4,56 @@
 ================================================================ */
 
 
+function renderAcousticReferenceDatabase() {
+    const dbData = ABS001_ACOUSTIC_REFERENCE_DB;
+    const ref = dbData.assumed_healthy_reference;
+    const fmt = (v, digits = 2) => Number(v).toFixed(digits);
+    const rows = dbData.participants.map(p => `
+        <tr>
+            <td>${escapeHtml(p.label)}</td>
+            <td>${p.scan_count}</td>
+            <td>${fmt(p.summary.f0_hz.median, 1)} Hz</td>
+            <td>${fmt(p.summary.rms.median, 4)}</td>
+            <td>${fmt(p.summary.bandwidth_hz.median, 3)} Hz</td>
+            <td>${fmt(p.summary.q_factor.median, 2)}</td>
+            <td>${p.participant_id === ref.participant_id ? '<span class="badge primary">Assumed reference</span>' : '<span class="badge">Comparison only</span>'}</td>
+        </tr>`).join("");
+    const readings = dbData.readings.map((r, i) => `
+        <tr><td>${i + 1}</td><td>${escapeHtml(r.participant_id)}</td><td>${escapeHtml(r.side)}</td>
+        <td>${fmt(r.f0_hz, 1)}</td><td>${fmt(r.rms, 4)}</td><td>${fmt(r.bandwidth_hz, 3)}</td><td>${fmt(r.q_factor, 2)}</td></tr>`).join("");
+    return `
+      <div class="page-header"><div><div class="section-kicker">ABS-001 · EXPERIMENTAL DATABASE</div><h1>Acoustic Reference Database</h1>
+      <p>Built from ${dbData.readings.length} user-provided left-radius scans across four participants. This reference is stored inside the frontend JavaScript file; it is not a Supabase table.</p></div></div>
+      <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Active comparison reference</h3><p>Participant 2 — assumed healthy, not clinically verified</p></div><span class="badge">Research only</span></div>
+      <div class="panel-body"><div class="metrics-grid">
+        ${resultCard("Resonance frequency f₀", fmt(ref.f0_hz, 1), "Hz")}
+        ${resultCard("RMS amplitude", fmt(ref.rms, 4), "")}
+        ${resultCard("Bandwidth", fmt(ref.bandwidth_hz, 3), "Hz")}
+        ${resultCard("Q-factor", fmt(ref.q_factor, 2), "")}
+      </div></div></div>
+      <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Participant summary</h3><p>Median values and scan counts from the collected dataset</p></div></div>
+      <div class="panel-body"><div style="overflow-x:auto"><table><thead><tr><th>Participant</th><th>Scans</th><th>Median f₀</th><th>Median RMS</th><th>Median bandwidth</th><th>Median Q</th><th>Role</th></tr></thead><tbody>${rows}</tbody></table></div></div></div>
+      <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Interpretation logic</h3><p>Applied to a new scan when it is a left-radius measurement with valid f₀, RMS, bandwidth and Q values</p></div></div>
+      <div class="panel-body">
+        <ol>
+          <li><strong>Validate the scan:</strong> only left-radius measurements are compared; missing or invalid values produce an unavailable message.</li>
+          <li><strong>Calculate relative deviations:</strong> show each measurement as a percentage above or below the assumed reference median.</li>
+          <li><strong>Calculate acoustic similarity:</strong> use capped relative deviations weighted as 45% resonance frequency, 40% bandwidth and 15% RMS amplitude. Q-factor is displayed as a comparison metric but is not included in the score because it is related to resonance frequency and bandwidth.</li>
+          <li><strong>Display provisional labels:</strong> 85–100 = close acoustic match; 70–84 = moderate acoustic difference; below 70 = large acoustic difference.</li>
+        </ol>
+        <p><strong>Important:</strong> the score is a provisional engineering comparison only. It does not estimate bone mineral density, diagnose osteoporosis, or indicate clinical normality. The reference participant has not been validated by DXA or another clinical method.</p>
+      </div></div>
+      <div class="panel"><div class="panel-header"><div><h3>All stored reference readings</h3><p>Raw values used to build the participant summaries</p></div></div><div class="panel-body"><details><summary>Show all ${dbData.readings.length} readings</summary><div style="overflow-x:auto;margin-top:12px"><table><thead><tr><th>#</th><th>Participant</th><th>Side</th><th>f₀ (Hz)</th><th>RMS</th><th>Bandwidth (Hz)</th><th>Q-factor</th></tr></thead><tbody>${readings}</tbody></table></div></details></div></div>
+    `;
+}
+
+async function showAcousticReferenceDatabase() {
+    const content = document.getElementById("mainContent");
+    if (!content) return;
+    content.innerHTML = renderAcousticReferenceDatabase();
+}
+
+
 /* ================================================================
    GLOBAL STATE
 ================================================================ */
@@ -44,7 +94,9 @@ function abs001FormatDeviation(value, reference, unit = "%") {
 
 function getABS001AcousticInterpretation(measurement) {
     const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
-    if (!measurement || String(measurement.bone || "").toLowerCase() !== "radius" || String(measurement.side || measurement.measurement_side || "").toLowerCase() !== "left") {
+    const boneValue = measurement?.bone ?? measurement?.profile_bone ?? measurement?.bone_type ?? "";
+    const sideValue = measurement?.side ?? measurement?.measurement_side ?? measurement?.profile_side ?? "";
+    if (!measurement || String(boneValue).toLowerCase() !== "radius" || String(sideValue).toLowerCase() !== "left") {
         return { supported: false, message: "The current reference database covers left-radius measurements only." };
     }
     const f0 = Number(measurement.f0 ?? measurement.f0_hz);
@@ -1256,6 +1308,12 @@ function buildNavigation() {
                 id: "scanner",
                 label: "Scanner",
                 group: "CLINICAL"
+            },
+
+            {
+                id: "acoustic-reference",
+                label: "Acoustic Reference DB",
+                group: "DATABASE"
             }
 
         ];
@@ -1435,6 +1493,12 @@ async function navigate(page) {
             case "scanner":
 
                 await renderScanner();
+
+                break;
+
+            case "acoustic-reference":
+
+                await showAcousticReferenceDatabase();
 
                 break;
 
@@ -10444,3 +10508,5 @@ window.toggleSidebar = toggleSidebar;
 window.togglePatientMeasurementGraph = togglePatientMeasurementGraph;
 window.toggleStaffMeasurementGraph = toggleStaffMeasurementGraph;
 window.getABS001AcousticInterpretation = getABS001AcousticInterpretation;
+window.renderAcousticReferenceDatabase = renderAcousticReferenceDatabase;
+window.ABS001_ACOUSTIC_REFERENCE_DB = ABS001_ACOUSTIC_REFERENCE_DB;
