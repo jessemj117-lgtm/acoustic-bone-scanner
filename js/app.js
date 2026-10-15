@@ -21,6 +21,108 @@ let currentPage = "dashboard";
 
 let referenceGroupsCache = [];
 
+/* ================================================================
+   ABS-001 EXPERIMENTAL ACOUSTIC REFERENCE DATABASE
+   Source: 47 user-provided scans from four anonymous participants.
+   Participant 2 is an ASSUMED healthy reference only; no DXA labels.
+   These values support acoustic-profile comparison, NOT BMD diagnosis.
+================================================================ */
+const ABS001_ACOUSTIC_REFERENCE_DB = {"database_name":"ABS-001 Experimental Acoustic Reference Database","version":"1.0.0","created_from":"User-provided measurements recorded 2026-10-15","scope":{"bone":"radius","side":"left","clinical_validation":false},"interpretation_policy":"Acoustic-profile similarity only. Do not infer BMD, osteoporosis, or clinical normality.","assumed_healthy_reference":{"participant_id":"P2","label":"Participant 2 \u2014 assumed healthy reference (not clinically verified)","bone":"radius","side":"left","f0_hz":1070.0,"rms":0.0505,"bandwidth_hz":8.5485,"q_factor":115.34100000000001,"source_scan_count":12},"participants":[{"participant_id":"P1","label":"Participant 1","status":"comparison_only","scan_count":9,"summary":{"f0_hz":{"median":1100,"min":795,"max":1180},"rms":{"median":0.031,"min":0.024,"max":0.683},"bandwidth_hz":{"median":12.786,"min":7.67,"max":21.078},"q_factor":{"median":80.296,"min":52.187,"max":128.64}}},{"participant_id":"P2","label":"Participant 2","status":"assumed_healthy_reference_not_clinically_verified","scan_count":12,"summary":{"f0_hz":{"median":1070.0,"min":790,"max":1180},"rms":{"median":0.0505,"min":0.035,"max":0.398},"bandwidth_hz":{"median":8.5485,"min":7.901,"max":16.657},"q_factor":{"median":115.34100000000001,"min":65.049,"max":148.715}}},{"participant_id":"P3","label":"Participant 3","status":"comparison_only","scan_count":10,"summary":{"f0_hz":{"median":1047.5,"min":765,"max":1125},"rms":{"median":0.041499999999999995,"min":0.037,"max":0.293},"bandwidth_hz":{"median":8.338000000000001,"min":7.882,"max":18.299},"q_factor":{"median":101.41499999999999,"min":61.477,"max":138.873}}},{"participant_id":"P4","label":"Participant 4","status":"comparison_only","scan_count":16,"summary":{"f0_hz":{"median":970.0,"min":345,"max":1130},"rms":{"median":0.0395,"min":0.03,"max":0.172},"bandwidth_hz":{"median":13.464,"min":7.876,"max":23.902},"q_factor":{"median":65.52199999999999,"min":21.91,"max":125.26}}}],"readings":[{"participant_id":"P1","timestamp":"2026-10-15T10:24:00+05:30","bone":"radius","side":"left","f0_hz":1115,"rms":0.031,"bandwidth_hz":18.225,"q_factor":61.181},{"participant_id":"P1","timestamp":"2026-10-15T10:23:00+05:30","bone":"radius","side":"left","f0_hz":1115,"rms":0.03,"bandwidth_hz":8.668,"q_factor":128.64},{"participant_id":"P1","timestamp":"2026-10-15T10:22:00+05:30","bone":"radius","side":"left","f0_hz":1000,"rms":0.103,"bandwidth_hz":11.658,"q_factor":85.778},{"participant_id":"P1","timestamp":"2026-10-15T10:22:00+05:30","bone":"radius","side":"left","f0_hz":960,"rms":0.024,"bandwidth_hz":8.104,"q_factor":118.456},{"participant_id":"P1","timestamp":"2026-10-15T10:21:00+05:30","bone":"radius","side":"left","f0_hz":1165,"rms":0.04,"bandwidth_hz":17.461,"q_factor":66.721},{"participant_id":"P1","timestamp":"2026-10-15T10:21:00+05:30","bone":"radius","side":"left","f0_hz":1180,"rms":0.025,"bandwidth_hz":14.696,"q_factor":80.296},{"participant_id":"P1","timestamp":"2026-10-15T10:20:00+05:30","bone":"radius","side":"left","f0_hz":1010,"rms":0.683,"bandwidth_hz":12.786,"q_factor":78.99},{"participant_id":"P1","timestamp":"2026-10-15T10:19:00+05:30","bone":"radius","side":"left","f0_hz":1100,"rms":0.08,"bandwidth_hz":21.078,"q_factor":52.187},{"participant_id":"P1","timestamp":"2026-10-15T10:19:00+05:30","bone":"radius","side":"left","f0_hz":795,"rms":0.027,"bandwidth_hz":7.67,"q_factor":103.653},{"participant_id":"P2","timestamp":"2026-10-15T11:53:00+05:30","bone":"radius","side":"left","f0_hz":1080,"rms":0.07,"bandwidth_hz":16.603,"q_factor":65.049},{"participant_id":"P2","timestamp":"2026-10-15T11:51:00+05:30","bone":"radius","side":"left","f0_hz":900,"rms":0.042,"bandwidth_hz":10.765,"q_factor":83.602},{"participant_id":"P2","timestamp":"2026-10-15T11:49:00+05:30","bone":"radius","side":"left","f0_hz":1180,"rms":0.04,"bandwidth_hz":8.279,"q_factor":142.528},{"participant_id":"P2","timestamp":"2026-10-15T11:48:00+05:30","bone":"radius","side":"left","f0_hz":1010,"rms":0.398,"bandwidth_hz":10.696,"q_factor":94.432},{"participant_id":"P2","timestamp":"2026-10-15T11:48:00+05:30","bone":"radius","side":"left","f0_hz":1080,"rms":0.053,"bandwidth_hz":8.282,"q_factor":130.407},{"participant_id":"P2","timestamp":"2026-10-15T11:47:00+05:30","bone":"radius","side":"left","f0_hz":1005,"rms":0.053,"bandwidth_hz":8.497,"q_factor":118.271},{"participant_id":"P2","timestamp":"2026-10-15T11:46:00+05:30","bone":"radius","side":"left","f0_hz":1110,"rms":0.041,"bandwidth_hz":8.46,"q_factor":131.21},{"participant_id":"P2","timestamp":"2026-10-15T11:44:00+05:30","bone":"radius","side":"left","f0_hz":1120,"rms":0.304,"bandwidth_hz":16.657,"q_factor":67.24},{"participant_id":"P2","timestamp":"2026-10-15T11:43:00+05:30","bone":"radius","side":"left","f0_hz":790,"rms":0.045,"bandwidth_hz":8.532,"q_factor":92.589},{"participant_id":"P2","timestamp":"2026-10-15T11:42:00+05:30","bone":"radius","side":"left","f0_hz":1175,"rms":0.035,"bandwidth_hz":7.901,"q_factor":148.715},{"participant_id":"P2","timestamp":"2026-10-15T11:41:00+05:30","bone":"radius","side":"left","f0_hz":1060,"rms":0.048,"bandwidth_hz":8.565,"q_factor":123.762},{"participant_id":"P2","timestamp":"2026-10-15T11:40:00+05:30","bone":"radius","side":"left","f0_hz":1045,"rms":0.058,"bandwidth_hz":9.296,"q_factor":112.411},{"participant_id":"P3","timestamp":"2026-10-15T12:12:00+05:30","bone":"radius","side":"left","f0_hz":765,"rms":0.044,"bandwidth_hz":8.575,"q_factor":89.208},{"participant_id":"P3","timestamp":"2026-10-15T12:12:00+05:30","bone":"radius","side":"left","f0_hz":1045,"rms":0.122,"bandwidth_hz":11.866,"q_factor":88.069},{"participant_id":"P3","timestamp":"2026-10-15T12:11:00+05:30","bone":"radius","side":"left","f0_hz":1125,"rms":0.077,"bandwidth_hz":18.299,"q_factor":61.477},{"participant_id":"P3","timestamp":"2026-10-15T12:10:00+05:30","bone":"radius","side":"left","f0_hz":1110,"rms":0.293,"bandwidth_hz":11.557,"q_factor":96.05},{"participant_id":"P3","timestamp":"2026-10-15T12:09:00+05:30","bone":"radius","side":"left","f0_hz":1095,"rms":0.188,"bandwidth_hz":14.111,"q_factor":77.601},{"participant_id":"P3","timestamp":"2026-10-15T12:03:00+05:30","bone":"radius","side":"left","f0_hz":860,"rms":0.037,"bandwidth_hz":8.054,"q_factor":106.78},{"participant_id":"P3","timestamp":"2026-10-15T12:02:00+05:30","bone":"radius","side":"left","f0_hz":1050,"rms":0.037,"bandwidth_hz":7.933,"q_factor":132.359},{"participant_id":"P3","timestamp":"2026-10-15T12:02:00+05:30","bone":"radius","side":"left","f0_hz":1035,"rms":0.039,"bandwidth_hz":7.882,"q_factor":131.313},{"participant_id":"P3","timestamp":"2026-10-15T12:01:00+05:30","bone":"radius","side":"left","f0_hz":1005,"rms":0.038,"bandwidth_hz":8.034,"q_factor":125.095},{"participant_id":"P3","timestamp":"2026-10-15T12:00:00+05:30","bone":"radius","side":"left","f0_hz":1125,"rms":0.038,"bandwidth_hz":8.101,"q_factor":138.873},{"participant_id":"P4","timestamp":"2026-10-15T12:28:00+05:30","bone":"radius","side":"left","f0_hz":1130,"rms":0.034,"bandwidth_hz":14.747,"q_factor":76.627},{"participant_id":"P4","timestamp":"2026-10-15T12:28:00+05:30","bone":"radius","side":"left","f0_hz":990,"rms":0.172,"bandwidth_hz":21.543,"q_factor":45.955},{"participant_id":"P4","timestamp":"2026-10-15T12:27:00+05:30","bone":"radius","side":"left","f0_hz":695,"rms":0.035,"bandwidth_hz":8.361,"q_factor":83.129},{"participant_id":"P4","timestamp":"2026-10-15T12:26:00+05:30","bone":"radius","side":"left","f0_hz":1000,"rms":0.089,"bandwidth_hz":16.972,"q_factor":58.922},{"participant_id":"P4","timestamp":"2026-10-15T12:26:00+05:30","bone":"radius","side":"left","f0_hz":1030,"rms":0.033,"bandwidth_hz":8.223,"q_factor":125.26},{"participant_id":"P4","timestamp":"2026-10-15T12:25:00+05:30","bone":"radius","side":"left","f0_hz":495,"rms":0.033,"bandwidth_hz":13.593,"q_factor":36.415},{"participant_id":"P4","timestamp":"2026-10-15T12:24:00+05:30","bone":"radius","side":"left","f0_hz":780,"rms":0.03,"bandwidth_hz":7.876,"q_factor":99.031},{"participant_id":"P4","timestamp":"2026-10-15T12:24:00+05:30","bone":"radius","side":"left","f0_hz":635,"rms":0.037,"bandwidth_hz":8.805,"q_factor":72.122},{"participant_id":"P4","timestamp":"2026-10-15T12:23:00+05:30","bone":"radius","side":"left","f0_hz":635,"rms":0.037,"bandwidth_hz":8.251,"q_factor":76.961},{"participant_id":"P4","timestamp":"2026-10-15T12:23:00+05:30","bone":"radius","side":"left","f0_hz":1080,"rms":0.049,"bandwidth_hz":9.666,"q_factor":111.729},{"participant_id":"P4","timestamp":"2026-10-15T12:21:00+05:30","bone":"radius","side":"left","f0_hz":680,"rms":0.037,"bandwidth_hz":13.335,"q_factor":50.992},{"participant_id":"P4","timestamp":"2026-10-15T12:20:00+05:30","bone":"radius","side":"left","f0_hz":1005,"rms":0.137,"bandwidth_hz":23.902,"q_factor":42.046},{"participant_id":"P4","timestamp":"2026-10-15T12:19:00+05:30","bone":"radius","side":"left","f0_hz":345,"rms":0.052,"bandwidth_hz":15.746,"q_factor":21.91},{"participant_id":"P4","timestamp":"2026-10-15T12:19:00+05:30","bone":"radius","side":"left","f0_hz":950,"rms":0.109,"bandwidth_hz":19.819,"q_factor":47.934},{"participant_id":"P4","timestamp":"2026-10-15T12:18:00+05:30","bone":"radius","side":"left","f0_hz":995,"rms":0.121,"bandwidth_hz":21.386,"q_factor":46.526},{"participant_id":"P4","timestamp":"2026-10-15T12:18:00+05:30","bone":"radius","side":"left","f0_hz":1115,"rms":0.042,"bandwidth_hz":9.213,"q_factor":121.028}]};
+window.ABS001_ACOUSTIC_REFERENCE_DB = ABS001_ACOUSTIC_REFERENCE_DB;
+
+function abs001RelativePercent(value, reference) {
+    if (!Number.isFinite(Number(value)) || !Number.isFinite(Number(reference)) || Number(reference) === 0) return null;
+    return ((Number(value) - Number(reference)) / Number(reference)) * 100;
+}
+
+function abs001FormatDeviation(value, reference, unit = "%") {
+    const pct = abs001RelativePercent(value, reference);
+    if (pct === null) return "not available";
+    const direction = pct > 0 ? "above" : (pct < 0 ? "below" : "equal to");
+    return `${Math.abs(pct).toFixed(1)}${unit} ${direction} reference`;
+}
+
+function getABS001AcousticInterpretation(measurement) {
+    const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
+    if (!measurement || String(measurement.bone || "").toLowerCase() !== "radius" || String(measurement.side || measurement.measurement_side || "").toLowerCase() !== "left") {
+        return { supported: false, message: "The current reference database covers left-radius measurements only." };
+    }
+    const f0 = Number(measurement.f0 ?? measurement.f0_hz);
+    const rms = Number(measurement.rms);
+    const bw = Number(measurement.bandwidth ?? measurement.bandwidth_hz);
+    const q = Number(measurement.q_factor ?? measurement.q);
+    if (![f0, rms, bw, q].every(Number.isFinite) || f0 <= 0 || rms < 0 || bw <= 0 || q <= 0) {
+        return { supported: false, message: "Not enough valid values to compare this scan." };
+    }
+    // Weighted distance from the assumed reference median. The weights and display bands
+    // are engineering choices for visualization only, not medically validated thresholds.
+    const cappedDeviation = (v, r) => Math.min(1, Math.abs((v - r) / r));
+    const distance =
+        0.45 * cappedDeviation(f0, ref.f0_hz) +
+        0.40 * cappedDeviation(bw, ref.bandwidth_hz) +
+        0.15 * Math.min(1, Math.abs(Math.log((rms + 1e-9) / (ref.rms + 1e-9))) / Math.log(4));
+    const similarity = Math.round(Math.max(0, Math.min(100, (1 - distance) * 100)));
+    let label;
+    let detail;
+    if (similarity >= 85) {
+        label = "Close acoustic match";
+        detail = "The measured profile is relatively close to the assumed reference medians.";
+    } else if (similarity >= 70) {
+        label = "Moderate acoustic difference";
+        detail = "Some measured features differ from the assumed reference profile.";
+    } else {
+        label = "Large acoustic difference";
+        detail = "The profile differs substantially from the assumed reference. Repeat the scan and check sensor placement/contact before interpreting it.";
+    }
+    return {
+        supported: true,
+        similarity,
+        label,
+        detail,
+        reference: ref,
+        deviations: {
+            f0: abs001FormatDeviation(f0, ref.f0_hz),
+            rms: abs001FormatDeviation(rms, ref.rms),
+            bandwidth: abs001FormatDeviation(bw, ref.bandwidth_hz),
+            q: abs001FormatDeviation(q, ref.q_factor)
+        },
+        clinicalMessage: "Bone mineral density cannot be determined from this acoustic comparison. This is not a clinical diagnosis or a validated density estimate."
+    };
+}
+
+function renderABS001AcousticInterpretation(measurement) {
+    const result = getABS001AcousticInterpretation(measurement);
+    if (!result.supported) {
+        return `<div class="info-message" style="margin-top:16px;"><strong>Acoustic reference comparison unavailable</strong><br>${escapeHtml(result.message)}</div>`;
+    }
+    const ref = result.reference;
+    return `
+        <div class="panel" style="margin-top:16px;border:1px solid rgba(128,128,128,.28);">
+            <div class="panel-header">
+                <div><div class="section-kicker">EXPERIMENTAL REFERENCE COMPARISON</div><h3>Relative acoustic interpretation</h3></div>
+                <span class="badge">Research only</span>
+            </div>
+            <div class="panel-body">
+                <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+                    <strong style="font-size:1.35rem;">${result.similarity}/100</strong>
+                    <strong>${escapeHtml(result.label)}</strong>
+                </div>
+                <p>${escapeHtml(result.detail)}</p>
+                <p><strong>Compared with assumed reference medians:</strong></p>
+                <ul>
+                    <li>Resonance frequency: ${escapeHtml(result.deviations.f0)} (reference ${Number(ref.f0_hz).toFixed(1)} Hz)</li>
+                    <li>RMS amplitude: ${escapeHtml(result.deviations.rms)} (reference ${Number(ref.rms).toFixed(4)})</li>
+                    <li>Bandwidth: ${escapeHtml(result.deviations.bandwidth)} (reference ${Number(ref.bandwidth_hz).toFixed(3)} Hz)</li>
+                    <li>Q-factor: ${escapeHtml(result.deviations.q)} (reference ${Number(ref.q_factor).toFixed(3)})</li>
+                </ul>
+                <p><strong>Bone mineral density:</strong> Not determined. The score describes acoustic similarity only; it is not a density value, probability, or osteoporosis screening result.</p>
+                <small>Reference: Participant 2, assumed healthy but not clinically verified. Display-score weights and bands are provisional engineering choices, not validated thresholds.</small>
+            </div>
+        </div>
+    `;
+}
+
+
 let selectedPatientId = null;
 
 let scanPollTimer = null; // Scanner status refresh timer
@@ -9676,6 +9778,8 @@ function renderPatientMeasurementCard(
                     measurement
                 )}
 
+                ${renderABS001AcousticInterpretation(measurement)}
+
                 <div
                     style="
                         display:flex;
@@ -10339,3 +10443,4 @@ window.closeModal = closeModal;
 window.toggleSidebar = toggleSidebar;
 window.togglePatientMeasurementGraph = togglePatientMeasurementGraph;
 window.toggleStaffMeasurementGraph = toggleStaffMeasurementGraph;
+window.getABS001AcousticInterpretation = getABS001AcousticInterpretation;
