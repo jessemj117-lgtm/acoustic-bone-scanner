@@ -1203,8 +1203,7 @@ function renderABS001ScanComparison(measurement, compact = false) {
             <strong>Overall scan comparison:</strong>
             <strong>${matchLevel}</strong> <span>(${result.similarity}/100)</span>
         </div>
-        <p style="margin:6px 0 0;font-size:13px;"><strong>Relative index:</strong> ${densityLevel} (${result.relativeDensityIndex}/100; reference = 100).</p>
-        <p style="margin:5px 0 0;font-size:12px;opacity:.75;">Compared with reference scans from all four participants. Experimental estimate only—not a clinical bone-density result.</p>
+        <p style="margin:6px 0 0;font-size:13px;"><strong>Relative index: ${densityLevel} (${result.relativeDensityIndex}/100; reference = 100).</strong></p>
     </div>`;
 }
 
