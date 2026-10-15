@@ -6,7 +6,7 @@
 
 function renderAcousticReferenceDatabase() {
     const dbData = ABS001_ACOUSTIC_REFERENCE_DB;
-    const ref = dbData.assumed_healthy_reference;
+    const ref = getABS001CombinedReferenceProfile();
     const fmt = (v, digits = 2) => Number(v).toFixed(digits);
     const rows = dbData.participants.map(p => `
         <tr>
@@ -16,15 +16,15 @@ function renderAcousticReferenceDatabase() {
             <td>${fmt(p.summary.rms.median, 4)}</td>
             <td>${fmt(p.summary.bandwidth_hz.median, 3)} Hz</td>
             <td>${fmt(p.summary.q_factor.median, 2)}</td>
-            <td>${p.participant_id === ref.participant_id ? '<span class="badge primary">Assumed reference</span>' : '<span class="badge">Comparison only</span>'}</td>
+            <td>${'<span class="badge">Included in reference</span>'}</td>
         </tr>`).join("");
     const readings = dbData.readings.map((r, i) => `
         <tr><td>${i + 1}</td><td>${escapeHtml(r.participant_id)}</td><td>${escapeHtml(r.side)}</td>
         <td>${fmt(r.f0_hz, 1)}</td><td>${fmt(r.rms, 4)}</td><td>${fmt(r.bandwidth_hz, 3)}</td><td>${fmt(r.q_factor, 2)}</td></tr>`).join("");
     return `
       <div class="page-header"><div><div class="section-kicker">ABS-001 · EXPERIMENTAL DATABASE</div><h1>Acoustic Reference Database</h1>
-      <p>Built from ${dbData.readings.length} user-provided left-radius scans across four participants. This reference is stored inside the frontend JavaScript file; it is not a Supabase table.</p></div></div>
-      <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Active comparison reference</h3><p>Participant 2 — assumed healthy, not clinically verified</p></div><span class="badge">Research only</span></div>
+      <p>Built from ${dbData.readings.length} user-provided left-radius scans across four participants. The reference profile is calculated from the stored summary values for all four participants. It is stored in the frontend JavaScript file; it is not a Supabase table.</p></div></div>
+      <div class="panel" style="margin-bottom:18px"><div class="panel-header"><div><h3>Active comparison reference</h3><p>Combined reference built from Participants 1–4</p></div><span class="badge">Research only</span></div>
       <div class="panel-body"><div class="metrics-grid">
         ${resultCard("Resonance frequency f₀", fmt(ref.f0_hz, 1), "Hz")}
         ${resultCard("RMS amplitude", fmt(ref.rms, 4), "")}
@@ -37,9 +37,9 @@ function renderAcousticReferenceDatabase() {
       <div class="panel-body">
         <ol>
           <li><strong>Validate the scan:</strong> compare by acoustic values only; bone and side metadata do not affect eligibility. Valid f₀, RMS and bandwidth are required; Q-factor is optional.</li>
-          <li><strong>Calculate relative deviations:</strong> show each measurement as a percentage above or below the assumed reference median.</li>
+          <li><strong>Calculate relative deviations:</strong> compare the scan with the combined reference profile from all four participants.</li>
           <li><strong>Calculate acoustic similarity:</strong> use capped relative deviations weighted as 45% resonance frequency, 40% bandwidth and 15% RMS amplitude. Q-factor is displayed as a comparison metric but is not included in the score because it is related to resonance frequency and bandwidth.</li>
-          <li><strong>Display provisional labels:</strong> 85–100 = close acoustic match; 70–84 = moderate acoustic difference; below 70 = large acoustic difference.</li>
+          <li><strong>Display provisional labels:</strong> 85–100 = high match; 70–84 = moderate match; below 70 = low match.</li>
         </ol>
         <p><strong>Important:</strong> the score is a provisional engineering comparison only. It does not estimate bone mineral density, diagnose osteoporosis, or indicate clinical normality. The reference participant has not been validated by DXA or another clinical method.</p>
       </div></div>
@@ -75,7 +75,7 @@ let referenceGroupsCache = [];
 /* ================================================================
    ABS-001 EXPERIMENTAL ACOUSTIC REFERENCE DATABASE
    Source: 47 user-provided scans from four anonymous participants.
-   Participant 2 is an ASSUMED healthy reference only; no DXA labels.
+   All four participants contribute to a combined experimental reference; no DXA labels are available.
    These values support acoustic-profile comparison, NOT BMD diagnosis.
 ================================================================ */
 const ABS001_ACOUSTIC_REFERENCE_DB = {"database_name":"ABS-001 Experimental Acoustic Reference Database","version":"1.0.0","created_from":"User-provided measurements recorded 2026-10-15","scope":{"bone":"radius","side":"left","clinical_validation":false},"interpretation_policy":"Acoustic-profile similarity only. Do not infer BMD, osteoporosis, or clinical normality.","assumed_healthy_reference":{"participant_id":"P2","label":"Participant 2 \u2014 assumed healthy reference (not clinically verified)","bone":"radius","side":"left","f0_hz":1070.0,"rms":0.0505,"bandwidth_hz":8.5485,"q_factor":115.34100000000001,"source_scan_count":12},"participants":[{"participant_id":"P1","label":"Participant 1","status":"comparison_only","scan_count":9,"summary":{"f0_hz":{"median":1100,"min":795,"max":1180},"rms":{"median":0.031,"min":0.024,"max":0.683},"bandwidth_hz":{"median":12.786,"min":7.67,"max":21.078},"q_factor":{"median":80.296,"min":52.187,"max":128.64}}},{"participant_id":"P2","label":"Participant 2","status":"assumed_healthy_reference_not_clinically_verified","scan_count":12,"summary":{"f0_hz":{"median":1070.0,"min":790,"max":1180},"rms":{"median":0.0505,"min":0.035,"max":0.398},"bandwidth_hz":{"median":8.5485,"min":7.901,"max":16.657},"q_factor":{"median":115.34100000000001,"min":65.049,"max":148.715}}},{"participant_id":"P3","label":"Participant 3","status":"comparison_only","scan_count":10,"summary":{"f0_hz":{"median":1047.5,"min":765,"max":1125},"rms":{"median":0.041499999999999995,"min":0.037,"max":0.293},"bandwidth_hz":{"median":8.338000000000001,"min":7.882,"max":18.299},"q_factor":{"median":101.41499999999999,"min":61.477,"max":138.873}}},{"participant_id":"P4","label":"Participant 4","status":"comparison_only","scan_count":16,"summary":{"f0_hz":{"median":970.0,"min":345,"max":1130},"rms":{"median":0.0395,"min":0.03,"max":0.172},"bandwidth_hz":{"median":13.464,"min":7.876,"max":23.902},"q_factor":{"median":65.52199999999999,"min":21.91,"max":125.26}}}],"readings":[{"participant_id":"P1","timestamp":"2026-10-15T10:24:00+05:30","bone":"radius","side":"left","f0_hz":1115,"rms":0.031,"bandwidth_hz":18.225,"q_factor":61.181},{"participant_id":"P1","timestamp":"2026-10-15T10:23:00+05:30","bone":"radius","side":"left","f0_hz":1115,"rms":0.03,"bandwidth_hz":8.668,"q_factor":128.64},{"participant_id":"P1","timestamp":"2026-10-15T10:22:00+05:30","bone":"radius","side":"left","f0_hz":1000,"rms":0.103,"bandwidth_hz":11.658,"q_factor":85.778},{"participant_id":"P1","timestamp":"2026-10-15T10:22:00+05:30","bone":"radius","side":"left","f0_hz":960,"rms":0.024,"bandwidth_hz":8.104,"q_factor":118.456},{"participant_id":"P1","timestamp":"2026-10-15T10:21:00+05:30","bone":"radius","side":"left","f0_hz":1165,"rms":0.04,"bandwidth_hz":17.461,"q_factor":66.721},{"participant_id":"P1","timestamp":"2026-10-15T10:21:00+05:30","bone":"radius","side":"left","f0_hz":1180,"rms":0.025,"bandwidth_hz":14.696,"q_factor":80.296},{"participant_id":"P1","timestamp":"2026-10-15T10:20:00+05:30","bone":"radius","side":"left","f0_hz":1010,"rms":0.683,"bandwidth_hz":12.786,"q_factor":78.99},{"participant_id":"P1","timestamp":"2026-10-15T10:19:00+05:30","bone":"radius","side":"left","f0_hz":1100,"rms":0.08,"bandwidth_hz":21.078,"q_factor":52.187},{"participant_id":"P1","timestamp":"2026-10-15T10:19:00+05:30","bone":"radius","side":"left","f0_hz":795,"rms":0.027,"bandwidth_hz":7.67,"q_factor":103.653},{"participant_id":"P2","timestamp":"2026-10-15T11:53:00+05:30","bone":"radius","side":"left","f0_hz":1080,"rms":0.07,"bandwidth_hz":16.603,"q_factor":65.049},{"participant_id":"P2","timestamp":"2026-10-15T11:51:00+05:30","bone":"radius","side":"left","f0_hz":900,"rms":0.042,"bandwidth_hz":10.765,"q_factor":83.602},{"participant_id":"P2","timestamp":"2026-10-15T11:49:00+05:30","bone":"radius","side":"left","f0_hz":1180,"rms":0.04,"bandwidth_hz":8.279,"q_factor":142.528},{"participant_id":"P2","timestamp":"2026-10-15T11:48:00+05:30","bone":"radius","side":"left","f0_hz":1010,"rms":0.398,"bandwidth_hz":10.696,"q_factor":94.432},{"participant_id":"P2","timestamp":"2026-10-15T11:48:00+05:30","bone":"radius","side":"left","f0_hz":1080,"rms":0.053,"bandwidth_hz":8.282,"q_factor":130.407},{"participant_id":"P2","timestamp":"2026-10-15T11:47:00+05:30","bone":"radius","side":"left","f0_hz":1005,"rms":0.053,"bandwidth_hz":8.497,"q_factor":118.271},{"participant_id":"P2","timestamp":"2026-10-15T11:46:00+05:30","bone":"radius","side":"left","f0_hz":1110,"rms":0.041,"bandwidth_hz":8.46,"q_factor":131.21},{"participant_id":"P2","timestamp":"2026-10-15T11:44:00+05:30","bone":"radius","side":"left","f0_hz":1120,"rms":0.304,"bandwidth_hz":16.657,"q_factor":67.24},{"participant_id":"P2","timestamp":"2026-10-15T11:43:00+05:30","bone":"radius","side":"left","f0_hz":790,"rms":0.045,"bandwidth_hz":8.532,"q_factor":92.589},{"participant_id":"P2","timestamp":"2026-10-15T11:42:00+05:30","bone":"radius","side":"left","f0_hz":1175,"rms":0.035,"bandwidth_hz":7.901,"q_factor":148.715},{"participant_id":"P2","timestamp":"2026-10-15T11:41:00+05:30","bone":"radius","side":"left","f0_hz":1060,"rms":0.048,"bandwidth_hz":8.565,"q_factor":123.762},{"participant_id":"P2","timestamp":"2026-10-15T11:40:00+05:30","bone":"radius","side":"left","f0_hz":1045,"rms":0.058,"bandwidth_hz":9.296,"q_factor":112.411},{"participant_id":"P3","timestamp":"2026-10-15T12:12:00+05:30","bone":"radius","side":"left","f0_hz":765,"rms":0.044,"bandwidth_hz":8.575,"q_factor":89.208},{"participant_id":"P3","timestamp":"2026-10-15T12:12:00+05:30","bone":"radius","side":"left","f0_hz":1045,"rms":0.122,"bandwidth_hz":11.866,"q_factor":88.069},{"participant_id":"P3","timestamp":"2026-10-15T12:11:00+05:30","bone":"radius","side":"left","f0_hz":1125,"rms":0.077,"bandwidth_hz":18.299,"q_factor":61.477},{"participant_id":"P3","timestamp":"2026-10-15T12:10:00+05:30","bone":"radius","side":"left","f0_hz":1110,"rms":0.293,"bandwidth_hz":11.557,"q_factor":96.05},{"participant_id":"P3","timestamp":"2026-10-15T12:09:00+05:30","bone":"radius","side":"left","f0_hz":1095,"rms":0.188,"bandwidth_hz":14.111,"q_factor":77.601},{"participant_id":"P3","timestamp":"2026-10-15T12:03:00+05:30","bone":"radius","side":"left","f0_hz":860,"rms":0.037,"bandwidth_hz":8.054,"q_factor":106.78},{"participant_id":"P3","timestamp":"2026-10-15T12:02:00+05:30","bone":"radius","side":"left","f0_hz":1050,"rms":0.037,"bandwidth_hz":7.933,"q_factor":132.359},{"participant_id":"P3","timestamp":"2026-10-15T12:02:00+05:30","bone":"radius","side":"left","f0_hz":1035,"rms":0.039,"bandwidth_hz":7.882,"q_factor":131.313},{"participant_id":"P3","timestamp":"2026-10-15T12:01:00+05:30","bone":"radius","side":"left","f0_hz":1005,"rms":0.038,"bandwidth_hz":8.034,"q_factor":125.095},{"participant_id":"P3","timestamp":"2026-10-15T12:00:00+05:30","bone":"radius","side":"left","f0_hz":1125,"rms":0.038,"bandwidth_hz":8.101,"q_factor":138.873},{"participant_id":"P4","timestamp":"2026-10-15T12:28:00+05:30","bone":"radius","side":"left","f0_hz":1130,"rms":0.034,"bandwidth_hz":14.747,"q_factor":76.627},{"participant_id":"P4","timestamp":"2026-10-15T12:28:00+05:30","bone":"radius","side":"left","f0_hz":990,"rms":0.172,"bandwidth_hz":21.543,"q_factor":45.955},{"participant_id":"P4","timestamp":"2026-10-15T12:27:00+05:30","bone":"radius","side":"left","f0_hz":695,"rms":0.035,"bandwidth_hz":8.361,"q_factor":83.129},{"participant_id":"P4","timestamp":"2026-10-15T12:26:00+05:30","bone":"radius","side":"left","f0_hz":1000,"rms":0.089,"bandwidth_hz":16.972,"q_factor":58.922},{"participant_id":"P4","timestamp":"2026-10-15T12:26:00+05:30","bone":"radius","side":"left","f0_hz":1030,"rms":0.033,"bandwidth_hz":8.223,"q_factor":125.26},{"participant_id":"P4","timestamp":"2026-10-15T12:25:00+05:30","bone":"radius","side":"left","f0_hz":495,"rms":0.033,"bandwidth_hz":13.593,"q_factor":36.415},{"participant_id":"P4","timestamp":"2026-10-15T12:24:00+05:30","bone":"radius","side":"left","f0_hz":780,"rms":0.03,"bandwidth_hz":7.876,"q_factor":99.031},{"participant_id":"P4","timestamp":"2026-10-15T12:24:00+05:30","bone":"radius","side":"left","f0_hz":635,"rms":0.037,"bandwidth_hz":8.805,"q_factor":72.122},{"participant_id":"P4","timestamp":"2026-10-15T12:23:00+05:30","bone":"radius","side":"left","f0_hz":635,"rms":0.037,"bandwidth_hz":8.251,"q_factor":76.961},{"participant_id":"P4","timestamp":"2026-10-15T12:23:00+05:30","bone":"radius","side":"left","f0_hz":1080,"rms":0.049,"bandwidth_hz":9.666,"q_factor":111.729},{"participant_id":"P4","timestamp":"2026-10-15T12:21:00+05:30","bone":"radius","side":"left","f0_hz":680,"rms":0.037,"bandwidth_hz":13.335,"q_factor":50.992},{"participant_id":"P4","timestamp":"2026-10-15T12:20:00+05:30","bone":"radius","side":"left","f0_hz":1005,"rms":0.137,"bandwidth_hz":23.902,"q_factor":42.046},{"participant_id":"P4","timestamp":"2026-10-15T12:19:00+05:30","bone":"radius","side":"left","f0_hz":345,"rms":0.052,"bandwidth_hz":15.746,"q_factor":21.91},{"participant_id":"P4","timestamp":"2026-10-15T12:19:00+05:30","bone":"radius","side":"left","f0_hz":950,"rms":0.109,"bandwidth_hz":19.819,"q_factor":47.934},{"participant_id":"P4","timestamp":"2026-10-15T12:18:00+05:30","bone":"radius","side":"left","f0_hz":995,"rms":0.121,"bandwidth_hz":21.386,"q_factor":46.526},{"participant_id":"P4","timestamp":"2026-10-15T12:18:00+05:30","bone":"radius","side":"left","f0_hz":1115,"rms":0.042,"bandwidth_hz":9.213,"q_factor":121.028}]};
@@ -93,8 +93,28 @@ function abs001FormatDeviation(value, reference, unit = "%") {
     return `${Math.abs(pct).toFixed(1)}${unit} ${direction} reference`;
 }
 
+function getABS001CombinedReferenceProfile() {
+    // Use the median of each participant's median values, so P1-P4 contribute equally.
+    const participants = ABS001_ACOUSTIC_REFERENCE_DB.participants || [];
+    const median = values => {
+        const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
+        if (!sorted.length) return null;
+        const mid = Math.floor(sorted.length / 2);
+        return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    };
+    return {
+        participant_id: 'P1-P4',
+        label: 'Combined reference from Participants 1-4',
+        f0_hz: median(participants.map(p => Number(p.summary?.f0_hz?.median))),
+        rms: median(participants.map(p => Number(p.summary?.rms?.median))),
+        bandwidth_hz: median(participants.map(p => Number(p.summary?.bandwidth_hz?.median))),
+        q_factor: median(participants.map(p => Number(p.summary?.q_factor?.median))),
+        source_scan_count: participants.reduce((sum, p) => sum + (Number(p.scan_count) || 0), 0)
+    };
+}
+
 function getABS001AcousticInterpretation(measurement) {
-    const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
+    const ref = getABS001CombinedReferenceProfile();
     if (!measurement || typeof measurement !== "object") {
         return { supported: false, message: "No measurement record was provided." };
     }
@@ -193,51 +213,7 @@ function getABS001AcousticInterpretation(measurement) {
 }
 
 function renderABS001AcousticInterpretation(measurement) {
-    const result = getABS001AcousticInterpretation(measurement);
-    const ref = ABS001_ACOUSTIC_REFERENCE_DB.assumed_healthy_reference;
-    if (!result.supported) {
-        return `
-            <div class="panel" style="margin-top:16px;border:1px solid rgba(128,128,128,.28);">
-                <div class="panel-header">
-                    <div><div class="section-kicker">REFERENCE COMPARISON</div><h3>Relative acoustic comparison</h3></div>
-                    <span class="badge">Research only</span>
-                </div>
-                <div class="panel-body">
-                    <strong>Comparison unavailable for this scan</strong>
-                    <p>${escapeHtml(result.message)}</p>
-                    <p><strong>Reference values:</strong> f₀ ${Number(ref.f0_hz).toFixed(1)} Hz; RMS ${Number(ref.rms).toFixed(4)}; bandwidth ${Number(ref.bandwidth_hz).toFixed(3)} Hz; Q ${Number(ref.q_factor).toFixed(2)}.</p>
-                </div>
-            </div>`;
-    }
-
-    return `
-        <div class="panel" style="margin-top:16px;border:1px solid rgba(128,128,128,.28);">
-            <div class="panel-header">
-                <div><div class="section-kicker">REFERENCE COMPARISON</div><h3>Relative acoustic comparison</h3></div>
-                <span class="badge">Research only</span>
-            </div>
-            <div class="panel-body">
-                <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
-                    <strong style="font-size:1.35rem;">${result.similarity}/100</strong>
-                    <strong>${escapeHtml(result.label)}</strong>
-                </div>
-                <p>${escapeHtml(result.detail)}</p>
-                <p><strong>Measured values compared with reference:</strong></p>
-                <div style="overflow-x:auto;">
-                  <table>
-                    <thead><tr><th>Feature</th><th>Measured</th><th>Reference</th><th>Difference</th></tr></thead>
-                    <tbody>
-                      <tr><td>Resonance frequency (f₀)</td><td>${Number(result.measured.f0).toFixed(1)} Hz</td><td>${Number(ref.f0_hz).toFixed(1)} Hz</td><td>${escapeHtml(result.deviations.f0)}</td></tr>
-                      <tr><td>RMS amplitude</td><td>${Number(result.measured.rms).toFixed(4)}</td><td>${Number(ref.rms).toFixed(4)}</td><td>${escapeHtml(result.deviations.rms)}</td></tr>
-                      <tr><td>Bandwidth</td><td>${Number(result.measured.bandwidth).toFixed(3)} Hz</td><td>${Number(ref.bandwidth_hz).toFixed(3)} Hz</td><td>${escapeHtml(result.deviations.bandwidth)}</td></tr>
-                      <tr><td>Q-factor</td><td>${result.measured.q === null || result.measured.q <= 0 ? "Not available" : Number(result.measured.q).toFixed(3)}</td><td>${Number(ref.q_factor).toFixed(3)}</td><td>${escapeHtml(result.deviations.q)}</td></tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p><strong>Reference profile:</strong> Participant 2, assumed healthy for prototype comparison only; not clinically verified.</p>
-                <p><strong>Important:</strong> The score indicates acoustic similarity only. It is not a bone-density value, medical diagnosis, or validated osteoporosis screening result.</p>
-            </div>
-        </div>`;
+    return renderABS001ScanComparison(measurement, false);
 }
 
 let selectedPatientId = null;
@@ -1213,27 +1189,22 @@ async function renderPatientPortal(patient) {
 
 function renderABS001ScanComparison(measurement, compact = false) {
     const result = getABS001AcousticInterpretation(measurement);
+    const style = `margin-top:${compact ? '0' : '14px'};padding:12px;border:1px solid rgba(128,128,128,.28);border-radius:8px;`;
     if (!result || !result.supported) {
-        return `<div class="abs001-scan-comparison" style="margin-top:${compact ? '0' : '14px'};padding:12px;border:1px solid rgba(128,128,128,.28);border-radius:8px;">
+        return `<div class="abs001-scan-comparison" style="${style}">
             <strong>Overall scan comparison:</strong> Not available
-            <p style="margin:6px 0 0;font-size:13px;">${escapeHtml(result?.message || 'Valid acoustic measurements are required.')}</p>
-            <p style="margin:6px 0 0;font-size:13px;"><strong>Relative bone density:</strong> Not established by this prototype.</p>
+            <p style="margin:6px 0 0;font-size:13px;">${escapeHtml(result?.message || 'Valid scan values are needed.')}</p>
         </div>`;
     }
-    let level;
-    if (result.similarity >= 90) level = 'Very high acoustic match';
-    else if (result.similarity >= 80) level = 'High acoustic match';
-    else if (result.similarity >= 65) level = 'Intermediate acoustic match';
-    else if (result.similarity >= 45) level = 'Low acoustic match';
-    else level = 'Very low acoustic match';
-    return `<div class="abs001-scan-comparison" style="margin-top:${compact ? '0' : '14px'};padding:12px;border:1px solid rgba(128,128,128,.28);border-radius:8px;">
-        <div style="display:flex;gap:12px;align-items:baseline;flex-wrap:wrap;">
+    const matchLevel = result.similarity >= 85 ? 'High' : result.similarity >= 70 ? 'Moderate' : 'Low';
+    const densityLevel = result.relativeDensityIndex < 85 ? 'Very low' : result.relativeDensityIndex < 95 ? 'Low' : result.relativeDensityIndex <= 105 ? 'Intermediate' : result.relativeDensityIndex < 115 ? 'High' : 'Very high';
+    return `<div class="abs001-scan-comparison" style="${style}">
+        <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
             <strong>Overall scan comparison:</strong>
-            <strong>${escapeHtml(level)}</strong>
-            <span>${result.similarity}/100</span>
+            <strong>${matchLevel}</strong> <span>(${result.similarity}/100)</span>
         </div>
-        <p style="margin:6px 0 0;font-size:13px;"><strong>Experimental relative density estimate:</strong> ${escapeHtml(result.relativeDensityLevel)} (${result.relativeDensityIndex}/100; reference = 100).</p>
-        <p style="margin:6px 0 0;font-size:12px;opacity:.75;">Speculative acoustic index for this college mini-project. It compares the scan with the selected reference using resonance frequency, inverse bandwidth, and a low-weight RMS term. It is not measured bone mineral density or a clinical diagnosis.</p>
+        <p style="margin:6px 0 0;font-size:13px;"><strong>Relative index:</strong> ${densityLevel} (${result.relativeDensityIndex}/100; reference = 100).</p>
+        <p style="margin:5px 0 0;font-size:12px;opacity:.75;">Compared with reference scans from all four participants. Experimental estimate only—not a clinical bone-density result.</p>
     </div>`;
 }
 
@@ -1269,11 +1240,11 @@ function renderABS001PatientComparisonSummary(measurements) {
         validResults.reduce((sum, result) => sum + result.relativeDensityIndex, 0) / validResults.length
     );
     let densityLevel;
-    if (averageDensityIndex < 85) densityLevel = "Very low relative acoustic index";
-    else if (averageDensityIndex < 95) densityLevel = "Low relative acoustic index";
-    else if (averageDensityIndex <= 105) densityLevel = "Intermediate relative acoustic index";
-    else if (averageDensityIndex < 115) densityLevel = "High relative acoustic index";
-    else densityLevel = "Very high relative acoustic index";
+    if (averageDensityIndex < 85) densityLevel = "Very low";
+    else if (averageDensityIndex < 95) densityLevel = "Low";
+    else if (averageDensityIndex <= 105) densityLevel = "Intermediate";
+    else if (averageDensityIndex < 115) densityLevel = "High";
+    else densityLevel = "Very high";
 
     let level;
     if (averageScore >= 90) level = "Very high acoustic match";
@@ -1288,7 +1259,7 @@ function renderABS001PatientComparisonSummary(measurements) {
           <div>
             <div class="section-kicker">PATIENT RESULTS</div>
             <h2 style="margin:4px 0">Overall relative comparison</h2>
-            <p>One summary based on the patient's valid scans compared with the selected acoustic reference.</p>
+            <p>Average of this patient’s valid scans compared with all four reference participants.</p>
           </div>
           <span class="badge">Research only</span>
         </div>
@@ -1307,8 +1278,8 @@ function renderABS001PatientComparisonSummary(measurements) {
               <strong style="font-size:1.35rem;">${validResults.length}</strong>
             </div>
           </div>
-          <p style="margin-top:14px;"><strong>Average experimental relative density estimate:</strong> ${escapeHtml(densityLevel)} (${averageDensityIndex}/100; reference = 100).</p>
-          <p><strong>How to read it:</strong> This is a speculative acoustic index calculated from the patient's valid scans relative to Participant 2's reference profile. It is a mini-project comparison, not a measured bone mineral density value or a clinical diagnosis.</p>
+          <p style="margin-top:14px;"><strong>Average relative index:</strong> ${escapeHtml(densityLevel)} (${averageDensityIndex}/100; reference = 100).</p>
+          <p><strong>How to read it:</strong> This is an experimental estimate compared with reference scans from all four participants. It is not a clinical bone-density measurement.</p>
         </div>
       </section>`;
 }
