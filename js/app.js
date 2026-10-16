@@ -163,22 +163,15 @@ function getABS001AcousticInterpretation(measurement) {
         0.15 * Math.min(1, Math.abs(Math.log((rms + 1e-9) / (ref.rms + 1e-9))) / Math.log(4));
     const similarity = Math.round(Math.max(0, Math.min(100, (1 - distance) * 100)));
 
-    // SPECULATIVE MINI-PROJECT INDEX, not a physical BMD calculation.
-    // Higher resonance frequency and lower bandwidth are treated as a stiffer acoustic response;
-    // RMS has a low weight because it is strongly affected by sensor contact/coupling.
-    // Ratios are bounded to prevent a single extreme measurement dominating the estimate.
-    const boundedRatio = (value, reference) => Math.max(0.5, Math.min(1.5, value / reference));
-    const relativeDensityIndex = Math.round(100 * (
-        0.45 * boundedRatio(f0, ref.f0_hz) +
-        0.40 * boundedRatio(ref.bandwidth_hz, bw) +
-        0.15 * boundedRatio(rms + 1e-9, ref.rms + 1e-9)
-    ));
+    // Use the same 0-100 comparison score for both displays so the
+    // relative index cannot contradict the overall acoustic match.
+    // A perfect match to the combined reference is 100; lower similarity
+    // produces a proportionally lower index. This is not a BMD estimate.
+    const relativeDensityIndex = similarity;
     let relativeDensityLevel;
-    if (relativeDensityIndex < 85) relativeDensityLevel = 'Very low relative acoustic index';
-    else if (relativeDensityIndex < 95) relativeDensityLevel = 'Low relative acoustic index';
-    else if (relativeDensityIndex <= 105) relativeDensityLevel = 'Intermediate relative acoustic index';
-    else if (relativeDensityIndex < 115) relativeDensityLevel = 'High relative acoustic index';
-    else relativeDensityLevel = 'Very high relative acoustic index';
+    if (relativeDensityIndex >= 85) relativeDensityLevel = "High";
+    else if (relativeDensityIndex >= 70) relativeDensityLevel = "Moderate";
+    else relativeDensityLevel = "Low";
 
     let label;
     let detail;
@@ -1197,7 +1190,7 @@ function renderABS001ScanComparison(measurement, compact = false) {
         </div>`;
     }
     const matchLevel = result.similarity >= 85 ? 'High' : result.similarity >= 70 ? 'Moderate' : 'Low';
-    const densityLevel = result.relativeDensityIndex < 85 ? 'Very low' : result.relativeDensityIndex < 95 ? 'Low' : result.relativeDensityIndex <= 105 ? 'Intermediate' : result.relativeDensityIndex < 115 ? 'High' : 'Very high';
+    const densityLevel = result.relativeDensityIndex >= 85 ? 'High' : result.relativeDensityIndex >= 70 ? 'Moderate' : 'Low';
     return `<div class="abs001-scan-comparison" style="${style}">
         <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;">
             <strong>Overall scan comparison:</strong>
@@ -1238,19 +1231,16 @@ function renderABS001PatientComparisonSummary(measurements) {
     const averageDensityIndex = Math.round(
         validResults.reduce((sum, result) => sum + result.relativeDensityIndex, 0) / validResults.length
     );
+    // Both summary labels use the same score bands as individual scan cards.
     let densityLevel;
-    if (averageDensityIndex < 85) densityLevel = "Very low";
-    else if (averageDensityIndex < 95) densityLevel = "Low";
-    else if (averageDensityIndex <= 105) densityLevel = "Intermediate";
-    else if (averageDensityIndex < 115) densityLevel = "High";
-    else densityLevel = "Very high";
+    if (averageDensityIndex >= 85) densityLevel = "High";
+    else if (averageDensityIndex >= 70) densityLevel = "Moderate";
+    else densityLevel = "Low";
 
     let level;
-    if (averageScore >= 90) level = "Very high acoustic match";
-    else if (averageScore >= 80) level = "High acoustic match";
-    else if (averageScore >= 65) level = "Intermediate acoustic match";
-    else if (averageScore >= 45) level = "Low acoustic match";
-    else level = "Very low acoustic match";
+    if (averageScore >= 85) level = "High acoustic match";
+    else if (averageScore >= 70) level = "Moderate acoustic match";
+    else level = "Low acoustic match";
 
     return `
       <section class="panel" id="patientAcousticComparison" style="margin-bottom:18px;border:2px solid var(--primary-color, #64748b);">
