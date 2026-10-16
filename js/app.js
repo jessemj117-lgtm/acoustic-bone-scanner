@@ -2379,6 +2379,13 @@ function renderPatientRow(
                     </button>
 
                     <button
+                        class="button small secondary"
+                        onclick="editPatient('${escapeJsString(patient.id)}')"
+                    >
+                        Edit
+                    </button>
+
+                    <button
                         class="button small danger"
                         onclick="deletePatient('${escapeJsString(patient.id)}', '${escapeJsString(patientName)}')"
                     >
@@ -2392,6 +2399,40 @@ function renderPatientRow(
         </tr>
 
     `;
+}
+
+
+/* ================================================================
+   EDIT PATIENT DETAILS
+================================================================ */
+
+async function editPatient(patientId) {
+
+    if (!patientId || !isStaff()) {
+        return;
+    }
+
+    try {
+        const { data: patient, error } = await db
+            .from("patients")
+            .select("*")
+            .eq("id", patientId)
+            .single();
+
+        if (error) {
+            throw error;
+        }
+
+        if (!patient) {
+            throw new Error("Patient record was not found.");
+        }
+
+        openPatientForm(patient);
+
+    } catch (error) {
+        console.error("Load patient for editing error:", error);
+        toast(error.message || "Unable to load patient details.", "error");
+    }
 }
 
 
@@ -10637,6 +10678,7 @@ function renderFrequencyResponseGraph(measurement) {
 window.navigate = navigate;
 window.openPatientForm = openPatientForm;
 window.savePatient = savePatient;
+window.editPatient = editPatient;
 window.viewPatient = viewPatient;
 window.deletePatient = deletePatient;
 window.startPatientScan = startPatientScan;
