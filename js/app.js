@@ -6010,6 +6010,48 @@ function openPatientForm(
                     </div>
 
 
+                    <div>
+
+                        <label class="form-label">
+                            Height (cm) <span class="muted">(optional)</span>
+                        </label>
+
+                        <input
+                            name="height"
+                            type="number"
+                            min="20"
+                            max="250"
+                            step="0.1"
+                            value="${escapeAttribute(
+                                patient?.height ?? ""
+                            )}"
+                            placeholder="Height in cm"
+                        >
+
+                    </div>
+
+
+                    <div>
+
+                        <label class="form-label">
+                            Weight (kg) <span class="muted">(optional)</span>
+                        </label>
+
+                        <input
+                            name="weight"
+                            type="number"
+                            min="1"
+                            max="500"
+                            step="0.1"
+                            value="${escapeAttribute(
+                                patient?.weight ?? ""
+                            )}"
+                            placeholder="Weight in kg"
+                        >
+
+                    </div>
+
+
                     <div class="full-width">
 
                         <label class="form-label">
@@ -6093,6 +6135,16 @@ async function savePatient(
                 data.sex || ""
             ),
 
+        height:
+            data.height === undefined || String(data.height).trim() === ""
+                ? null
+                : Number(data.height),
+
+        weight:
+            data.weight === undefined || String(data.weight).trim() === ""
+                ? null
+                : Number(data.weight),
+
         notes:
             String(
                 data.notes || ""
@@ -6164,6 +6216,43 @@ async function savePatient(
                     createdPatient.message ||
                     "Patient could not be created."
                 );
+            }
+
+
+            // The existing create_patient RPC does not take height/weight
+            // arguments. If optional values were entered, save them after
+            // creation using the ID returned by the RPC.
+            if (payload.height !== null || payload.weight !== null) {
+                const resultRow = Array.isArray(createdPatient)
+                    ? createdPatient[0]
+                    : createdPatient;
+                const createdPatientId =
+                    typeof resultRow === "string"
+                        ? resultRow
+                        : resultRow?.patient_id ||
+                          resultRow?.id ||
+                          resultRow?.patient?.id ||
+                          resultRow?.data?.id;
+
+                if (!createdPatientId) {
+                    throw new Error(
+                        "Patient was created, but the create_patient RPC did not return a patient ID, so height/weight could not be saved. Update the RPC to return the created patient ID or save these fields after creation."
+                    );
+                }
+
+                const { error: bodyMetricsError } = await db
+                    .from("patients")
+                    .update({
+                        height: payload.height,
+                        weight: payload.weight
+                    })
+                    .eq("id", createdPatientId);
+
+                if (bodyMetricsError) {
+                    throw new Error(
+                        `Patient was created, but height/weight could not be saved: ${bodyMetricsError.message}`
+                    );
+                }
             }
 
 
